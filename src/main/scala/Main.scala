@@ -13,20 +13,6 @@ case class Conj(c: Seq[Clause])
 
 object Solver {
 
-    def tryAssign(conj: Conj, sol: Solution, testAsg: (Var, Asg)): Option[(Conj, Solution)] = {
-        val (variable, asg) = testAsg
-
-        if (sol.s.getOrElse(variable, asg) != asg) None
-        else {
-            val s = sol.s + testAsg
-            val c = conj.c.map(_.s).flatMap { clause =>
-                if (clause.find(p1 => s.find(p2 => p1 == p2).isDefined).isDefined) Seq()
-                else Seq(clause.filterNot({ case(k, v) => s.getOrElse(k, v) != v }))
-            }.map(Clause(_))
-            Some((Conj(c), Solution(s)))
-        }
-    }
-
     def solve(conj: Conj, sol: Solution): Option[(Conj, Solution)] = {
         val sorted = conj.c.sortBy(_.s.length)
 
@@ -34,11 +20,19 @@ object Solver {
         else for {
             clause <- sorted.headOption
             first <- clause.s.foldLeft[Option[(Conj, Solution)]](None) {(prev, atom) =>
+                val (variable, asg) = atom
                 // do not attempt the next variable unless the previous attempt failed.
-                prev.orElse(for {
-                    (conj, sol) <- tryAssign(conj, sol, atom)
-                    result      <- solve(conj, sol)
-                } yield result)
+                prev.orElse(
+                    if (sol.s.getOrElse(variable, asg) != asg) None
+                    else {
+                        val s = sol.s + atom
+                        val c = conj.c.map(_.s).flatMap { clause =>
+                            if (clause.find(p1 => s.find(p2 => p1 == p2).isDefined).isDefined) Seq()
+                            else Seq(clause.filterNot({ case(k, v) => s.getOrElse(k, v) != v }))
+                        }.map(Clause(_))
+                        solve(Conj(c), Solution(s))
+                    }
+                )
             }
         } yield first
     }
