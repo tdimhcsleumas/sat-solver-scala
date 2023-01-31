@@ -13,7 +13,7 @@ case class Conj(c: Seq[Clause])
 
 object Solver {
 
-    def solve(conj: Conj, sol: Solution): Option[(Conj, Solution)] = {
+    def tryAssign(conj: Conj, sol: Solution): Option[(Conj, Solution)] = {
         val sorted = conj.c.sortBy(_.s.length)
 
         if (sorted.isEmpty) Some((conj, sol))
@@ -30,12 +30,20 @@ object Solver {
                             if (clause.find(p1 => s.find(p2 => p1 == p2).isDefined).isDefined) Seq()
                             else Seq(clause.filterNot({ case(k, v) => s.getOrElse(k, v) != v }))
                         }.map(Clause(_))
-                        solve(Conj(c), Solution(s))
+                        tryAssign(Conj(c), Solution(s))
                     }
                 )
             }
         } yield first
     }
+
+    def solve(nums: Set[Var], conj: Conj): Option[Solution] = tryAssign(conj, Solution(Map()))
+        .map { result =>
+            val (_, sol) = result
+            nums
+                .filterNot(num => sol.s.contains(num))
+                .foldLeft(sol)((sol, num) => Solution(sol.s + ((num, True))))
+        }
 }
 
 object ConjParser {
@@ -45,22 +53,29 @@ object ConjParser {
         })
         .map(Clause(_)))
 
-    def fromLines(lines: Iterator[String])  = Conj(lines.flatMap { line => 
-            if (line == "") Seq()
-            else if (line(0) == 'c' || line(0) == 'p') Seq()
-            else Seq(line.split(" ")
-                .filter(_.length > 0)
-                .map(_.toInt)
-                .filter(_ != 0)
-                .map { v =>
-                    (Var(v.abs.toInt), if (v >= 0) True else False)
-                })
-                .map(Clause(_))
-        }.toSeq)
+    def fromLines(lines: Iterator[String])  = {
+        val (nums, clauses) = lines.foldLeft((Set[Var](), Seq[Clause]())){ (state, line) => 
+            val (varSet, clauses) = state
+            if (line == "" || line(0) == 'c' || line(0) == 'p') state
+            else {
+                val (nextSet, clause) = line.split(" ")
+                    .filter(_.length > 0)
+                    .map(_.toInt)
+                    .filter(_ != 0)
+                    .foldLeft((varSet, Seq[(Var, Asg)]())) { (prev, next) =>
+                        val (prevSet, prevSeq) = prev
+                        val nextSeq = prevSeq :+ ((Var(next.abs.toInt), if (next >= 0) True else False))
+                        (prevSet + Var(next.abs.toInt), nextSeq)
+                    }
+                (nextSet, clauses :+ Clause(clause))
+            } 
+        }
+        (nums, Conj(clauses))
+    }
 }
 
 object Main {
-    def test(data: Conj): Unit = Solver.solve(data, Solution(Map()))
+    def test(data: (Set[Var], Conj)): Unit = Solver.solve(data._1, data._2)
         .fold(System.out.println("Failed to find assignment!")){a =>
             System.out.println(s"Assignment: $a")
         }
@@ -70,8 +85,7 @@ object Main {
             .lift(0)
             .fold(System.out.println("Usage: sat-solver <file>")) { filename =>
                 val lines = Source.fromFile(filename).getLines()
-                val conj = ConjParser.fromLines(lines) 
-                test(conj)
+                test(ConjParser.fromLines(lines))
             }
             
     }
