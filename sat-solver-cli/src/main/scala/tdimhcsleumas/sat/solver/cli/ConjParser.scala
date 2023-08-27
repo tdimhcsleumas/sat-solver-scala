@@ -14,8 +14,8 @@ object ConjParser {
                     .filter(_ != 0)
                     .foldLeft((varSet, Seq[(Var, Asg)]())) { (prev, next) =>
                         val (prevSet, prevSeq) = prev
-                        val nextSeq = prevSeq :+ ((Var(next.abs.toInt), if (next >= 0) True else False))
-                        (prevSet + Var(next.abs.toInt), nextSeq)
+                        val nextSeq = prevSeq :+ ((GenericVar(next.abs.toInt), if (next >= 0) True else False))
+                        (prevSet + GenericVar(next.abs.toInt), nextSeq)
                     }
                 (nextSet, clauses :+ Clause(clause))
             } 

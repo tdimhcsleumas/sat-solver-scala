@@ -1,3 +1,4 @@
 package tdimhcsleumas.sat.solver.lib.domain
 
-case class Var(i: Int)
+sealed trait Var
+case class GenericVar[A](i: A) extends Var
