@@ -28,11 +28,15 @@ object Solver {
         } yield first
     }
 
-    def solve(nums: Set[Var], conj: Conj): Option[Solution] = tryAssign(conj, Solution(Map()))
-        .map { result =>
-            val (_, sol) = result
-            nums
-                .filterNot(num => sol.s.contains(num))
-                .foldLeft(sol)((sol, num) => Solution(sol.s + ((num, True))))
-        }
+    def solve(nums: Seq[Var], conj: Conj): Option[Solution] = {
+        val numSet = nums.toSet
+
+        tryAssign(conj, Solution(Map()))
+            .map { result =>
+                val (_, sol) = result
+                numSet
+                    .filterNot(num => sol.s.contains(num))
+                    .foldLeft(sol)((sol, num) => Solution(sol.s + ((num, True))))
+            }
+    }
 }

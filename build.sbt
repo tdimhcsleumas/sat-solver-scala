@@ -1,6 +1,6 @@
 import LibraryDependencies._
 
-ThisBuild / scalaVersion := "2.12.1"
+ThisBuild / scalaVersion := "2.12.3"
 ThisBuild / organization := "tdimhcsleumas"
 
 lazy val root = (project in file("."))

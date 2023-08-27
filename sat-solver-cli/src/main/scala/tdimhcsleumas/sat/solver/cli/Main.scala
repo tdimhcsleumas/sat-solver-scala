@@ -11,7 +11,7 @@ object Main {
             .fold(System.out.println("Usage: sat-solver <file>")) { filename =>
                 val lines = Source.fromFile(filename).getLines()
                 val (variables, conj) = ConjParser.fromLines(lines)
-                Solver.solve(variables, conj) match {
+                Solver.solve(variables.toSeq, conj) match {
                     case Some(a) => println(s"Assignment: $a")
                     case None => println("Failed to find assignment!")
                 }
