@@ -4,13 +4,13 @@ import tdimhcsleumas.sat.solver.lib.domain._
 
 object Solver {
 
-    def tryAssign(conj: Conj, sol: Solution): Option[(Conj, Solution)] = {
+    def tryAssign[A <: Var](conj: Conj[A], sol: Solution[A]): Option[(Conj[A], Solution[A])] = {
         val sorted = conj.c.sortBy(_.s.length)
 
         if (sorted.isEmpty) Some((conj, sol))
         else for {
             clause <- sorted.headOption
-            first <- clause.s.foldLeft[Option[(Conj, Solution)]](None) {(prev, atom) =>
+            first <- clause.s.foldLeft[Option[(Conj[A], Solution[A])]](None) {(prev, atom) =>
                 val (variable, asg) = atom
                 // do not attempt the next variable unless the previous attempt failed.
                 prev.orElse(
@@ -28,7 +28,7 @@ object Solver {
         } yield first
     }
 
-    def solve(nums: Seq[Var], conj: Conj): Option[Solution] = {
+    def solve[A <: Var](nums: Seq[A], conj: Conj[A]): Option[Solution[A]] = {
         val numSet = nums.toSet
 
         tryAssign(conj, Solution(Map()))

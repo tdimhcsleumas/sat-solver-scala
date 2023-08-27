@@ -1,3 +1,3 @@
 package tdimhcsleumas.sat.solver.lib.domain
 
-case class Solution(s: Map[Var, Asg])
+case class Solution[A <: Var](s: Map[A, Asg])

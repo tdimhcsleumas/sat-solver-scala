@@ -9,6 +9,6 @@ class SudokuSolver {
 
         val solverService = new SolverService(cnfCreatorService)
 
-        ???
+        solverService.solve(problem)
     }
 }

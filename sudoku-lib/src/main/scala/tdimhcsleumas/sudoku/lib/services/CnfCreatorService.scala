@@ -8,13 +8,11 @@ class CnfCreatorService {
     private val rootProblemSize = 3
     private val numbers = 1 to problemSize
 
-    type SudokuVar = GenericVar[(Int, (Int, Int))]
-    def SudokuVar(a: Int, point: (Int, Int)) = GenericVar(a, point)
 
 
-    private def genCnf(points: Seq[(Int, Int)]): Seq[Clause] = {
+    private def genCnf(points: Seq[(Int, Int)]): Seq[Clause[GenericVar[(Int, (Int, Int))]]] = {
         val permissiveClauses = points.map { point =>
-            Clause(numbers.map(number => (SudokuVar(number, point), True)))
+            Clause(numbers.map(number => (GenericVar(number, point), True)))
         }
 
         val pointRestrictiveClauses = points.flatMap { point =>
@@ -22,8 +20,8 @@ class CnfCreatorService {
                 numbers.zipWithIndex.flatMap { case (numJ, j) =>
                     if (i >= j) Seq()
                     else Seq(Clause(Seq(
-                        (SudokuVar(numI, point), False),
-                        (SudokuVar(numJ, point), False)
+                        (GenericVar(numI, point), False),
+                        (GenericVar(numJ, point), False)
                     )))
                 }
             }
@@ -34,8 +32,8 @@ class CnfCreatorService {
                 points.zipWithIndex.flatMap { case (pointJ, j) =>
                     if (i >= j) Seq()
                     else Seq(Clause(Seq(
-                        (SudokuVar(number, pointI), False),
-                        (SudokuVar(number, pointJ), False)
+                        (GenericVar(number, pointI), False),
+                        (GenericVar(number, pointJ), False)
                     )))
                 }
             } 
@@ -44,7 +42,7 @@ class CnfCreatorService {
         permissiveClauses ++ pointRestrictiveClauses ++ numberRestrictiveClauses
     }
 
-    private def genSquareGroup(startPoint: (Int, Int)): Seq[Clause] = {
+    private def genSquareGroup(startPoint: (Int, Int)): Seq[Clause[GenericVar[(Int, (Int, Int))]]] = {
         val (startRow, startCol) = startPoint
 
         val points = (startRow to startRow + rootProblemSize).flatMap { row =>
@@ -56,7 +54,7 @@ class CnfCreatorService {
         genCnf(points)
     }
 
-    private def genRowGroup(startPoint: (Int, Int)): Seq[Clause] = {
+    private def genRowGroup(startPoint: (Int, Int)): Seq[Clause[GenericVar[(Int, (Int, Int))]]] = {
         val (startRow, startCol) = startPoint
 
         val points = (startCol to problemSize).map { col =>
@@ -66,7 +64,7 @@ class CnfCreatorService {
         genCnf(points)
     }
 
-    private def genColGroup(startPoint: (Int, Int)): Seq[Clause] = {
+    private def genColGroup(startPoint: (Int, Int)): Seq[Clause[GenericVar[(Int, (Int, Int))]]] = {
         val (startRow, startCol) = startPoint
 
         val points = (startRow to problemSize).map { row =>
@@ -76,7 +74,7 @@ class CnfCreatorService {
         genCnf(points)
     }
 
-    def createCnf(problem: SudokuProblem): (Seq[Var], Conj) = {
+    def createCnf(problem: SudokuProblem): (Seq[GenericVar[(Int, (Int, Int))]], Conj[GenericVar[(Int, (Int, Int))]]) = {
         val variables = (1 to problemSize).flatMap { row =>
             (1 to problemSize).flatMap { col =>
                 numbers.map(GenericVar(_, (row, col)))
