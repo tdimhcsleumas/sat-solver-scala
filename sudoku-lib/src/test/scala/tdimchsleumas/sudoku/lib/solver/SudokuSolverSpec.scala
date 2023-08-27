@@ -2,9 +2,14 @@ package tdimhcsleumas.sudoku.lib.solver
 
 import tdimhcsleumas.sudoku.lib.domain._
 import org.scalatest._
+import org.scalatest.concurrent.TimeLimitedTests
+import org.scalatest.time.{Span, Minutes}
 import funspec._
 
-class SudokuSolverSpec extends AnyFunSpec {
+class SudokuSolverSpec extends AnyFunSpec with TimeLimitedTests {
+
+    val timeLimit = Span(5, Minutes)
+
     it("solves a sudoku problem") {
         val problem = Seq(
             Seq(None, None, None, None, None, None, Some(2), None, None),
