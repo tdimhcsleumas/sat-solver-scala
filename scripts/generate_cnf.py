@@ -1,5 +1,7 @@
 from sys import argv
 import json
+from typing import Tuple, List
+from math import sqrt
 
 def generate_cnf(points: list):
     cnf = []
@@ -117,6 +119,104 @@ def assert_3_valid():
         print("The lists don't match")
 
 
+# given a point and the type of board, generate the id for this point
+def point_identity(num: int, point: Tuple[int, int]) -> int:
+    (row, col) = point
+
+    if row < 0 or row >= num:
+        raise Exception("row must satisfy 0 <= row < 9")
+    
+    if col < 0 or col >= num:
+        raise Exception("col must satisfy 0 <= col < 9")
+
+    return num * row + col
+
+def gen_square_points(num: int, start: Tuple[int, int]) -> List[Tuple[int, int]]:
+    (start_row, start_col) = start
+
+    if start_row < 0 or start_row >= num:
+        raise Exception("start_row must satisfy 0 <= start_row < 9")
+    
+    if start_col < 0 or start_col >= num:
+        raise Exception("start_col must satisfy 0 <= start_col < 9")
+
+    # this may produce some weird results when num isn't a perfect square 
+    root = int(sqrt(num))
+
+    points = []
+
+    for row in range(start_row, start_row + root):
+        for col in range(start_col, start_col + root):
+            point = point_identity(num, (row, col))
+            points.append(point)
+
+    return points
+
+
+def gen_row_points(num: int, start: Tuple[int, int]) -> List[Tuple[int, int]]:
+    (start_row, start_col) = start
+
+    if start_row < 0 or start_row >= num:
+        raise Exception("start_row must satisfy 0 <= start_row < 9")
+    
+    if start_col != 0:
+        raise Exception("start_col must start at 0")
+
+    points = []
+
+    for col in range(start_col, start_col + num):
+        point = point_identity(num, (start_row, col))
+        points.append(point)
+
+    return points
+
+
+def gen_col_points(num: int, start: Tuple[int, int]) -> List[Tuple[int, int]]:
+    (start_row, start_col) = start
+
+    if start_row != 0:
+        raise Exception("columns must start at row 0.")
+    
+    if start_col < 0 or start_col >= num:
+        raise Exception("start_col must satisfy 0 <= start_col < 9")
+
+    points = []
+
+    for row in range(start_row, start_row + num):
+        point = point_identity(num, (row, start_col))
+        points.append(point)
+
+    return points
+
+
+# generate cnf for num x num board
+def generate_sudoku(num: int):
+
+    full_cnf = []
+
+    root = int(sqrt(num))
+
+    # generate cnfs for all the squares
+    for row in range(0, num, root):
+        for col in range(0, num, root):
+            points = gen_square_points(num, (row, col))
+            cnf = generate_cnf(points)
+            full_cnf += cnf
+    
+    # generate cnfs for all the rows
+    for row in range(0, num):
+        points = gen_row_points(num, (row, 0))
+        cnf = generate_cnf(points)
+        full_cnf += cnf
+
+    # generate cnfs for all the columns
+    for col in range(0, num):
+        points = gen_col_points(num, (0, col))
+        cnf = generate_cnf(points)
+        full_cnf += cnf
+
+    return full_cnf
+
 if __name__ == "__main__": 
     if len(argv) != 3:
         raise Exception("Usage: python3 generate_cnf.py <num points> <file>")
@@ -124,7 +224,7 @@ if __name__ == "__main__":
     num_points = int(argv[1])
     file = argv[2]
 
-    result = generate_cnf([num for num in range(0, num_points)])
+    result = generate_sudoku(9)
 
     with open(file, 'w') as f:
         f.write(json.dumps(result))
