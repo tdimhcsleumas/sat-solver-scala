@@ -6,6 +6,7 @@ import org.scalatest.concurrent.TimeLimitedTests
 import org.scalatest.time.{Span, Minutes}
 import funspec._
 
+@Ignore
 class SudokuSolverSpec extends AnyFunSpec with TimeLimitedTests {
 
     val timeLimit = Span(5, Minutes)

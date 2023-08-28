@@ -2,12 +2,13 @@ package tdimhcsleumas.sat.solver.lib.solver
 
 import scala.annotation.tailrec
 
+case class Literal(i: Int, isDefined: Boolean)
+
+case class Clause(literals: Seq[Literal])
+
 class DPLLSolver {
     // https://en.wikipedia.org/wiki/DPLL_algorithm#The_algorithm
     
-    case class Literal(i: Int, isDefined: Boolean)
-
-    case class Clause(literals: Seq[Literal])
 
     def propagate(cnf: Seq[Clause], unit: Literal): Seq[Clause] = {
         cnf.flatMap { clause =>
