@@ -85,8 +85,8 @@ class DPLLSolver {
             map + ((i, count + 1))
         }
 
-        val (minI, _) = numToCountMap.min
-        minI
+        val (maxI, _) = numToCountMap.max
+        maxI
     }
 
     def solveRecurse(cnf: Seq[Clause], assignment: Seq[Literal]): Option[Seq[Literal]] = {
