@@ -1,12 +1,10 @@
-package tdimhcsleumas.sat.solver.lib.solver
-
-import tdimhcsleumas.sat.solver.lib.interfaces.SolverTrait
+package tdimhcsleumas.sat.solver.lib.algorithms
 
 /**
  * This was the first attempt. Observe its flaws.
  * It does not work.
  */
-class NaiveSolver extends SolverTrait {
+class NaiveAlg extends AlgTrait {
     case class Var(i: Int)
 
     sealed trait Asg

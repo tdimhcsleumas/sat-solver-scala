@@ -1,11 +1,9 @@
-package tdimhcsleumas.sat.solver.lib.solver
-
-import tdimhcsleumas.sat.solver.lib.interfaces.SolverTrait
+package tdimhcsleumas.sat.solver.lib.algorithms
 
 import scala.annotation.tailrec
 import scala.math
 
-class DPLLSolver extends SolverTrait {
+class DPLLAlg extends AlgTrait {
     // https://en.wikipedia.org/wiki/DPLL_algorithm#The_algorithm
     
 

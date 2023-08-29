@@ -3,7 +3,7 @@ package tdimhcsleumas.sat.solver.lib.solver
 import org.scalatest._
 import funspec._
 
-class DPLLSolverSpec extends AnyFunSpec {
+class DPLLAlgSpec extends AnyFunSpec {
     it("returns an assignment for a solvable problem") {
         val problem = Seq(
             Seq(1, 2, 3, 5, -6),
@@ -13,7 +13,7 @@ class DPLLSolverSpec extends AnyFunSpec {
             Seq(9, 5, -6),
         )
 
-        val solver = new DPLLSolver
+        val solver = new DPLLAlg
 
         val maybeAssignment = solver.solve(problem)
 
@@ -39,7 +39,7 @@ class DPLLSolverSpec extends AnyFunSpec {
             Seq(-1, -2, -3),
         )
 
-        val solver = new DPLLSolver
+        val solver = new DPLLAlg
 
         val maybeAssignment = solver.solve(problem)
 
