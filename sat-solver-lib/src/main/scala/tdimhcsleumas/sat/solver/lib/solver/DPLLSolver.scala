@@ -1,56 +1,55 @@
 package tdimhcsleumas.sat.solver.lib.solver
 
+import tdimhcsleumas.sat.solver.lib.interfaces.SolverTrait
+
 import scala.annotation.tailrec
+import scala.math
 
-case class Literal(i: Int, isDefined: Boolean)
-
-case class Clause(literals: Seq[Literal])
-
-class DPLLSolver {
+class DPLLSolver extends SolverTrait {
     // https://en.wikipedia.org/wiki/DPLL_algorithm#The_algorithm
     
 
-    def propagate(cnf: Seq[Clause], unit: Literal): Seq[Clause] = {
-        cnf.flatMap { clause =>
-            val Clause(literals) = clause
-            val Literal(i, isDefined) = unit
-
+    def propagate(cnf: Seq[Seq[Int]], unit: Int): Seq[Seq[Int]] = {
+        cnf.flatMap { literals =>
             if (literals.contains(unit)) {
                 List()
             } else {
-                val inverseUnit = Literal(i, !isDefined)
-                List(Clause(literals.filter(literal => literal != inverseUnit)))
+                val inverseUnit = -1 * unit
+                List(literals.filter(literal => literal != inverseUnit))
             }
         }
     }
 
-    def findUnit(cnf: Seq[Clause]): Option[Literal] = {
-        cnf.find(clause => clause.literals.length == 1).map(_.literals(0))
+    def findUnit(cnf: Seq[Seq[Int]]): Option[Int] = {
+        cnf.find(clause => clause.length == 1).map(_(0))
     }
 
-    def findPure(cnf: Seq[Clause]): Option[Literal] = {
-        val flattened = cnf.flatMap(clause => clause.literals)
+    def findPure(cnf: Seq[Seq[Int]]): Option[Int] = {
+        val flattened = cnf.flatMap(clause => clause)
 
         val literalToDefinedSet = flattened.foldLeft[Map[Int, Int]](Map()) { (map, literal) =>
-            val Literal(i, isDefined) = literal
-            val definedSet = map.getOrElse(i, 0)
-            val updatedSet = if (isDefined) {
-                definedSet | (1 << 1)
+            val absLiteral = math.abs(literal)
+            val definedSet = map.getOrElse(absLiteral, 0)
+            val updatedSet = if (literal > 0) {
+                definedSet | 2
             } else {
-                definedSet | (1 << 0)
+                definedSet | 1
             }
-            map + ((i, updatedSet))
+            map + ((absLiteral, updatedSet))
         }
 
         literalToDefinedSet.find { case (_, definedSet) =>
-            definedSet > 0 && (definedSet ^ 3) > 0
+            definedSet == 2 || definedSet == 1
         }.map { case(i, definedSet) =>
-            val isDefined = (definedSet & (1 << 1)) > 0
-            Literal(i, isDefined)
+            if (definedSet == 2) {
+                i
+            } else {
+                -1 * i
+            }
         }
     }
 
-    @tailrec private def unitPropagation(cnf: Seq[Clause], assignment: Seq[Literal]): (Seq[Clause], Seq[Literal]) = {
+    @tailrec private def unitPropagation(cnf: Seq[Seq[Int]], assignment: Seq[Int]): (Seq[Seq[Int]], Seq[Int]) = {
         val maybeUnit = findUnit(cnf)
         maybeUnit match {
             case None => (cnf, assignment)
@@ -62,7 +61,7 @@ class DPLLSolver {
         }
     }
 
-    @tailrec private def pureLiteralElimination(cnf: Seq[Clause], assignment: Seq[Literal]): (Seq[Clause], Seq[Literal]) = {
+    @tailrec private def pureLiteralElimination(cnf: Seq[Seq[Int]], assignment: Seq[Int]): (Seq[Seq[Int]], Seq[Int]) = {
         val maybePure = findPure(cnf)
         maybePure match {
             case None => (cnf, assignment)
@@ -76,20 +75,20 @@ class DPLLSolver {
 
     // this is likely the place to try out new heuristics
     // for now, select the literal with the highest occurence in the cnf
-    def chooseLiteral(cnf: Seq[Clause]): Int = {
-        val flattened = cnf.flatMap(clause => clause.literals)
+    def chooseLiteral(cnf: Seq[Seq[Int]]): Int = {
+        val flattened = cnf.flatMap(clause => clause)
 
         val numToCountMap = flattened.foldLeft[Map[Int, Int]](Map()) { (map, literal) =>
-            val Literal(i, _) = literal
-            val count = map.getOrElse(i, 0)
-            map + ((i, count + 1))
+            val absLiteral = math.abs(literal)
+            val count = map.getOrElse(absLiteral, 0)
+            map + ((absLiteral, count + 1))
         }
 
         val (maxI, _) = numToCountMap.max
         maxI
     }
 
-    def solveRecurse(cnf: Seq[Clause], assignment: Seq[Literal]): Option[Seq[Literal]] = {
+    def solveRecurse(cnf: Seq[Seq[Int]], assignment: Seq[Int]): Option[Seq[Int]] = {
         // unit propagation
         val (unitCnf, unitAssignment) = unitPropagation(cnf, assignment)
 
@@ -98,18 +97,18 @@ class DPLLSolver {
 
         if (pureCnf.length == 0) {
             Some(pureAssignment)
-        } else if (pureCnf.find(clause => clause.literals.isEmpty).isDefined) {
+        } else if (pureCnf.find(clause => clause.isEmpty).isDefined) {
             None
         } else {
             // backtracking
             val maxI = chooseLiteral(pureCnf)
-            val maybeInclude = solveRecurse(pureCnf :+ Clause(Seq(Literal(maxI, true))), pureAssignment)
+            val maybeInclude = solveRecurse(pureCnf :+ Seq(maxI), pureAssignment)
             maybeInclude match {
-                case None => solveRecurse(pureCnf :+ Clause(Seq(Literal(maxI, false))), pureAssignment)
+                case None => solveRecurse(pureCnf :+ Seq(-1 * maxI), pureAssignment)
                 case _ => maybeInclude
             }
         }
     }
 
-    def solve(cnf: Seq[Clause]): Option[Seq[Literal]] = solveRecurse(cnf, Seq())
+    override def solve(cnf: Seq[Seq[Int]]): Option[Seq[Int]] = solveRecurse(cnf, Seq())
 }
