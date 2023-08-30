@@ -8,7 +8,7 @@ class SatSolver(private val alg: AlgTrait) {
     private[this] val logger = getLogger
 
     def solve[A](cnf: CNF[A]): Option[Assignment[A]] = {
-        logger.debug(f"Solving cnf: $cnf with ${alg.getClass}")
+        logger.info(f"Solving cnf with ${cnf.clauses.length} clauses with ${alg.getClass}")
 
         val variables = cnf.clauses.flatMap(_.literals.map(_.variable))
             .toSet
