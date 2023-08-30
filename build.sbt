@@ -2,6 +2,7 @@ import LibraryDependencies._
 
 ThisBuild / scalaVersion := "2.12.3"
 ThisBuild / organization := "tdimhcsleumas"
+ThisBuild / autoCompilerPlugins := true
 
 lazy val root = (project in file("."))
     .aggregate(`sat-solver-cli`)
@@ -20,6 +21,7 @@ lazy val `sudoku-lib` = (project in file("sudoku-lib"))
     .settings(commonSettings)
 
 lazy val compilerOptions = Seq(
+  "-P:bm4:no-filtering:y",
   "-Ypartial-unification",
   "-Ywarn-unused",
   "-unchecked",
@@ -40,6 +42,10 @@ lazy val commonDependencies = Seq(
     Circe.circeParser,
 )
 
+lazy val compilerPlugins = Seq(
+  compilerPlugin("com.olegpy" %% "better-monadic-for" % "0.3.1")
+)
+
 lazy val commonSettings = Seq(
   scalacOptions ++= compilerOptions,
   Test / publishArtifact := false,
@@ -52,7 +58,7 @@ lazy val commonSettings = Seq(
     ),
     "Typesafe repository".at("https://dl.bintray.com/typesafe/maven-releases/")
   ),
-  libraryDependencies ++= commonDependencies,
+  libraryDependencies ++= commonDependencies ++ compilerPlugins,
   evictionErrorLevel := Level.Info,
   Test / parallelExecution := false,
   Test / fork := false,

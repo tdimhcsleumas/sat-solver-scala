@@ -1,4 +1,4 @@
-package tdimhcsleumas.sat.solver.lib.solver
+package tdimhcsleumas.sat.solver.lib.algorithms
 
 import org.scalatest._
 import funspec._

@@ -45,8 +45,6 @@ class NaiveAlg extends AlgTrait {
             literals.map(literal => Var(literal.abs))
         }.toSet
 
-        println(nums)
-
         val conj = Conj(cnf.map { literals =>
             val asgs = literals.map { literal =>
                 val variable = Var(literal.abs)

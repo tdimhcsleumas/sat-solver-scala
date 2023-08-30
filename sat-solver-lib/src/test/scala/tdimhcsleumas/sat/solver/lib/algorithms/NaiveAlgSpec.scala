@@ -1,11 +1,11 @@
-package tdimhcsleumas.sat.solver.lib.solver
+package tdimhcsleumas.sat.solver.lib.algorithms
 
 import org.scalatest._
 import funspec._
 
 // turns out this doesn't work
 @Ignore
-class NaiveSolverSpec extends AnyFunSpec {
+class NaiveAlgSpec extends AnyFunSpec {
     it("returns an assignment for a solvable problem") {
         val problem = Seq(
             Seq(1, 2, 3, 5, -6),
@@ -15,7 +15,7 @@ class NaiveSolverSpec extends AnyFunSpec {
             Seq(9, 5, -6),
         )
 
-        val solver = new NaiveSolver
+        val solver = new NaiveAlg
 
         val maybeAssignment = solver.solve(problem)
 
@@ -41,7 +41,7 @@ class NaiveSolverSpec extends AnyFunSpec {
             Seq(-1, -2, -3),
         )
 
-        val solver = new NaiveSolver
+        val solver = new NaiveAlg
 
         val maybeAssignment = solver.solve(problem)
 
