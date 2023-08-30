@@ -2,9 +2,14 @@ package tdimhcsleumas.sat.solver.lib.solver
 
 import tdimhcsleumas.sat.solver.lib.algorithms._
 import tdimhcsleumas.sat.solver.lib.domain._
+import org.log4s._
 
 class SatSolver(private val alg: AlgTrait) {
+    private[this] val logger = getLogger
+
     def solve[A](cnf: CNF[A]): Option[Assignment[A]] = {
+        logger.debug(f"Solving cnf: $cnf with ${alg.getClass}")
+
         val variables = cnf.clauses.flatMap(_.literals.map(_.variable))
             .toSet
             .toList

@@ -2,8 +2,10 @@ package tdimhcsleumas.sat.solver.lib.algorithms
 
 import scala.annotation.tailrec
 import scala.math
+import org.log4s._
 
 class DPLLAlg extends AlgTrait {
+    private[this] val logger = getLogger
     // https://en.wikipedia.org/wiki/DPLL_algorithm#The_algorithm
     
 
@@ -52,6 +54,8 @@ class DPLLAlg extends AlgTrait {
         maybeUnit match {
             case None => (cnf, assignment)
             case Some(unit) => {
+                logger.debug(s"Eliminating unit: $unit")
+
                 val newCnf = propagate(cnf, unit)
                 val newAssignment = assignment :+ unit
                 unitPropagation(newCnf, newAssignment)
@@ -64,6 +68,8 @@ class DPLLAlg extends AlgTrait {
         maybePure match {
             case None => (cnf, assignment)
             case Some(pure) => {
+                logger.debug(s"Eliminating pure: $pure")
+
                 val newCnf = propagate(cnf, pure)
                 val newAssignment = assignment :+ pure
                 pureLiteralElimination(newCnf, newAssignment)
@@ -87,6 +93,8 @@ class DPLLAlg extends AlgTrait {
     }
 
     def solveRecurse(cnf: Seq[Seq[Int]], assignment: Seq[Int]): Option[Seq[Int]] = {
+        logger.debug(s"assigned: ${assignment.length} variables")
+
         // unit propagation
         val (unitCnf, unitAssignment) = unitPropagation(cnf, assignment)
 
@@ -94,15 +102,25 @@ class DPLLAlg extends AlgTrait {
         val (pureCnf, pureAssignment) = pureLiteralElimination(unitCnf, unitAssignment)
 
         if (pureCnf.length == 0) {
+            logger.debug("Succeeded!")
+
             Some(pureAssignment)
         } else if (pureCnf.find(clause => clause.isEmpty).isDefined) {
+            logger.debug("Failed!")
+
             None
         } else {
             // backtracking
             val maxI = chooseLiteral(pureCnf)
+
+            logger.debug(s"Guessing: $maxI")
+
             val maybeInclude = solveRecurse(pureCnf :+ Seq(maxI), pureAssignment)
             maybeInclude match {
-                case None => solveRecurse(pureCnf :+ Seq(-1 * maxI), pureAssignment)
+                case None => {
+                    logger.debug(s"Guessing: -$maxI")
+                    solveRecurse(pureCnf :+ Seq(-1 * maxI), pureAssignment)
+                }
                 case _ => maybeInclude
             }
         }

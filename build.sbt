@@ -4,6 +4,8 @@ ThisBuild / scalaVersion := "2.12.3"
 ThisBuild / organization := "tdimhcsleumas"
 ThisBuild / autoCompilerPlugins := true
 
+javaOptions += "-Dorg.slf4j.simpleLogger.defaultLogLevel=info"
+
 lazy val root = (project in file("."))
     .aggregate(`sat-solver-cli`)
     .aggregate(`sat-solver-lib`)
@@ -40,6 +42,8 @@ lazy val commonDependencies = Seq(
     Circe.circeCore,
     Circe.circeGeneric,
     Circe.circeParser,
+    Log4s.log4s,
+    SLF4j.logger,
 )
 
 lazy val compilerPlugins = Seq(
