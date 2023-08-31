@@ -224,7 +224,7 @@ if __name__ == "__main__":
     num_points = int(argv[1])
     file = argv[2]
 
-    result = generate_sudoku(9)
+    result = generate_sudoku(num_points)
 
     with open(file, 'w') as f:
         f.write(json.dumps(result))

@@ -5,7 +5,7 @@ import tdimhcsleumas.sat.solver.lib.domain._
 import tdimhcsleumas.sudoku.lib.utils.SeqUtils._
 import tdimhcsleumas.sat.solver.lib.solver.SatSolver
 
-class SolverService(cnfCreatorService: CnfCreatorService, solver: SatSolver) {
+class SolverService(problemSize: Int, cnfCreatorService: CnfCreatorService, solver: SatSolver) {
     def solve(problem: SudokuProblem): Option[SudokuSolution] = {
         val cnf = cnfCreatorService.createCnf(problem)
 
@@ -21,11 +21,13 @@ class SolverService(cnfCreatorService: CnfCreatorService, solver: SatSolver) {
                     }
                 }
             )
-            mat <- (1 to 9).map { row =>
-                (1 to 9).map { col =>
-                    assignments.get((row, col))
+            mat <- {
+                (0 until problemSize).map { row =>
+                    (0 until problemSize).map { col =>
+                        assignments.get((row, col))
+                    }.all
                 }.all
-            }.all
+            }
             sudokuSolution <- Some(SudokuSolution(mat))
         } yield sudokuSolution
     }
