@@ -14,6 +14,9 @@ lazy val root = (project in file("."))
 lazy val `sat-solver-cli` = (project in file("sat-solver-cli"))
     .dependsOn(`sat-solver-lib`)
     .settings(commonSettings)
+    .settings(
+      libraryDependencies ++= commonCliDependencies
+    )
 
 lazy val `sat-solver-lib` = (project in file("sat-solver-lib"))
     .settings(commonSettings)
@@ -21,6 +24,17 @@ lazy val `sat-solver-lib` = (project in file("sat-solver-lib"))
 lazy val `sudoku-lib` = (project in file("sudoku-lib"))
     .dependsOn(`sat-solver-lib`)
     .settings(commonSettings)
+
+lazy val `sudoku-cli` = (project in file("sudoku-cli"))
+  .dependsOn(`sudoku-lib`)
+  .settings(commonSettings)
+  .settings(libraryDependencies ++= commonCliDependencies)
+  .settings(libraryDependencies ++= Seq(
+    Circe.circeCore,
+    Circe.circeGeneric,
+    Circe.circeParser,
+    Cats.core,
+  ))
 
 lazy val compilerOptions = Seq(
   "-P:bm4:no-filtering:y",
@@ -39,11 +53,12 @@ lazy val compilerOptions = Seq(
  
 lazy val commonDependencies = Seq(
     ScalaTest.scalaTest % Test,
-    Circe.circeCore,
-    Circe.circeGeneric,
-    Circe.circeParser,
     Log4s.log4s,
     SLF4j.logger,
+)
+
+lazy val commonCliDependencies = Seq(
+  Monovore.decline
 )
 
 lazy val compilerPlugins = Seq(

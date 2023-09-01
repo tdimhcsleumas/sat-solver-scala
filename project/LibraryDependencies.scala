@@ -22,4 +22,14 @@ object LibraryDependencies {
         val version = "2.0.7"
         val logger = "org.slf4j" % "slf4j-simple" % version
     }
+
+    object Monovore {
+        val version = "2.4.1"
+        val decline = "com.monovore" %% "decline" % version
+    }
+
+    object Cats {
+        val version = "2.10.0"
+        val core = "org.typelevel" %% "cats-core" % version
+    }
 }
