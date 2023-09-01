@@ -7,7 +7,6 @@ import org.log4s._
 class DPLLAlg extends AlgTrait {
     private[this] val logger = getLogger
     // https://en.wikipedia.org/wiki/DPLL_algorithm#The_algorithm
-    
 
     def propagate(cnf: Seq[Seq[Int]], unit: Int): Seq[Seq[Int]] = {
         cnf.flatMap { literals =>
@@ -38,18 +37,23 @@ class DPLLAlg extends AlgTrait {
             map + ((absLiteral, updatedSet))
         }
 
-        literalToDefinedSet.find { case (_, definedSet) =>
-            definedSet == 2 || definedSet == 1
-        }.map { case(i, definedSet) =>
-            if (definedSet == 2) {
-                i
-            } else {
-                -1 * i
+        literalToDefinedSet
+            .find { case (_, definedSet) =>
+                definedSet == 2 || definedSet == 1
             }
-        }
+            .map { case (i, definedSet) =>
+                if (definedSet == 2) {
+                    i
+                } else {
+                    -1 * i
+                }
+            }
     }
 
-    @tailrec private def unitPropagation(cnf: Seq[Seq[Int]], assignment: Seq[Int]): (Seq[Seq[Int]], Seq[Int]) = {
+    @tailrec private def unitPropagation(
+        cnf: Seq[Seq[Int]],
+        assignment: Seq[Int]
+    ): (Seq[Seq[Int]], Seq[Int]) = {
         val maybeUnit = findUnit(cnf)
         maybeUnit match {
             case None => (cnf, assignment)
@@ -63,7 +67,10 @@ class DPLLAlg extends AlgTrait {
         }
     }
 
-    @tailrec private def pureLiteralElimination(cnf: Seq[Seq[Int]], assignment: Seq[Int]): (Seq[Seq[Int]], Seq[Int]) = {
+    @tailrec private def pureLiteralElimination(
+        cnf: Seq[Seq[Int]],
+        assignment: Seq[Int]
+    ): (Seq[Seq[Int]], Seq[Int]) = {
         val maybePure = findPure(cnf)
         maybePure match {
             case None => (cnf, assignment)
@@ -92,14 +99,18 @@ class DPLLAlg extends AlgTrait {
         maxI
     }
 
-    def solveRecurse(cnf: Seq[Seq[Int]], assignment: Seq[Int]): Option[Seq[Int]] = {
+    def solveRecurse(
+        cnf: Seq[Seq[Int]],
+        assignment: Seq[Int]
+    ): Option[Seq[Int]] = {
         logger.debug(s"assigned: ${assignment.length} variables")
 
         // unit propagation
         val (unitCnf, unitAssignment) = unitPropagation(cnf, assignment)
 
         // pure literal elimination
-        val (pureCnf, pureAssignment) = pureLiteralElimination(unitCnf, unitAssignment)
+        val (pureCnf, pureAssignment) =
+            pureLiteralElimination(unitCnf, unitAssignment)
 
         if (pureCnf.length == 0) {
             logger.debug("Succeeded!")
