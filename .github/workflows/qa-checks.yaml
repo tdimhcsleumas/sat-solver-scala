@@ -1,6 +1,6 @@
 name: QA Checks
 
-run-name: QA check on ${{ inputs.deploy_target }} by @${{ github.actor }}
+run-name: QA check on ${{ github.ref }} by @${{ github.actor }}
 
 on:
   push:
