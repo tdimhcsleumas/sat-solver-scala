@@ -11,7 +11,9 @@ class CnfCreatorService(private val problemSize: Int) {
     private val rootProblemSize = math.sqrt(problemSize).toInt
     private val numbers = 1 to problemSize
 
-    private def genCnf(points: Seq[(Int, Int)]): Seq[Clause[(Int, (Int, Int))]] = {
+    private def genCnf(
+        points: Seq[(Int, Int)]
+    ): Seq[Clause[(Int, (Int, Int))]] = {
         val permissiveClauses = points.map { point =>
             Clause(numbers.map(number => Literal((number, point), true)).toList)
         }
@@ -20,10 +22,13 @@ class CnfCreatorService(private val problemSize: Int) {
             numbers.zipWithIndex.flatMap { case (numI, i) =>
                 numbers.zipWithIndex.flatMap { case (numJ, j) =>
                     if (i >= j) Seq()
-                    else Seq(Clause(
-                        Literal((numI, point), false),
-                        Literal((numJ, point), false)
-                    ))
+                    else
+                        Seq(
+                          Clause(
+                            Literal((numI, point), false),
+                            Literal((numJ, point), false)
+                          )
+                        )
                 }
             }
         }
@@ -32,18 +37,23 @@ class CnfCreatorService(private val problemSize: Int) {
             points.zipWithIndex.flatMap { case (pointI, i) =>
                 points.zipWithIndex.flatMap { case (pointJ, j) =>
                     if (i >= j) Seq()
-                    else Seq(Clause(
-                        Literal((number, pointI), false),
-                        Literal((number, pointJ), false)
-                    ))
+                    else
+                        Seq(
+                          Clause(
+                            Literal((number, pointI), false),
+                            Literal((number, pointJ), false)
+                          )
+                        )
                 }
-            } 
+            }
         }
-        
+
         permissiveClauses ++ pointRestrictiveClauses ++ numberRestrictiveClauses
     }
 
-    private def genSquareGroup(startPoint: (Int, Int)): Seq[Clause[(Int, (Int, Int))]] = {
+    private def genSquareGroup(
+        startPoint: (Int, Int)
+    ): Seq[Clause[(Int, (Int, Int))]] = {
         val (startRow, startCol) = startPoint
 
         val points = (startRow until startRow + rootProblemSize).flatMap { row =>
@@ -52,11 +62,12 @@ class CnfCreatorService(private val problemSize: Int) {
             }
         }
 
-
         genCnf(points)
     }
 
-    private def genRowGroup(startPoint: (Int, Int)): Seq[Clause[(Int, (Int, Int))]] = {
+    private def genRowGroup(
+        startPoint: (Int, Int)
+    ): Seq[Clause[(Int, (Int, Int))]] = {
         val (startRow, startCol) = startPoint
 
         val points = (startCol until problemSize).map { col =>
@@ -66,7 +77,9 @@ class CnfCreatorService(private val problemSize: Int) {
         genCnf(points)
     }
 
-    private def genColGroup(startPoint: (Int, Int)): Seq[Clause[(Int, (Int, Int))]] = {
+    private def genColGroup(
+        startPoint: (Int, Int)
+    ): Seq[Clause[(Int, (Int, Int))]] = {
         val (startRow, startCol) = startPoint
 
         val points = (startRow until problemSize).map { row =>
@@ -103,14 +116,17 @@ class CnfCreatorService(private val problemSize: Int) {
             }
         }
 
-        val cnf = CNF.builder()
+        val cnf = CNF
+            .builder()
             .addClauses(squareGroups)
             .addClauses(rowGroups)
             .addClauses(colGroups)
             .addClauses(unitClauses)
             .build()
 
-        logger.info(s"Created cnf with ${variables.length} variables and ${cnf.clauses.length} clauses")
+        logger.info(
+          s"Created cnf with ${variables.length} variables and ${cnf.clauses.length} clauses"
+        )
         cnf
     }
 }

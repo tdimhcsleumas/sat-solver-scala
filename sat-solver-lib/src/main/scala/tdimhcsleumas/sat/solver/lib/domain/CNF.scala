@@ -9,9 +9,13 @@ object CNF {
 }
 
 class CNFBuilder[A](private val clauses: List[Clause[A]] = List()) {
-    def addClause(clause: Clause[A]): CNFBuilder[A] = new CNFBuilder(this.clauses :+ clause)
+    def addClause(clause: Clause[A]): CNFBuilder[A] = new CNFBuilder(
+      this.clauses :+ clause
+    )
 
-    def addClauses(_clauses: Seq[Clause[A]]): CNFBuilder[A] = new CNFBuilder(this.clauses ++ _clauses)
+    def addClauses(_clauses: Seq[Clause[A]]): CNFBuilder[A] = new CNFBuilder(
+      this.clauses ++ _clauses
+    )
 
     def build(): CNF[A] = CNF(clauses)
 }
