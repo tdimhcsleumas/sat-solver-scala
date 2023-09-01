@@ -24,7 +24,7 @@ class CnfCreatorSpec extends AnyFunSpec {
     }
 
     it("returns a cnf for a sudoku problem") {
-        val creatorService = new CnfCreatorService(4)
+        val creatorService = new CnfCreatorService(9)
 
         val problem = SudokuProblem(Seq(
             Seq(None, None, None, None, None, None, Some(2), None, None),
