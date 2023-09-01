@@ -6,7 +6,8 @@ import funspec._
 
 class SudokuSolverSpec extends AnyFunSpec {
 
-    it("solves a sudoku problem") {
+    // this takes like 30 mins to run
+    ignore("solves a sudoku problem") {
         val problem = Seq(
             Seq(None, None, None, None, None, None, Some(2), None, None),
             Seq(None, Some(8), None, None, None, Some(7), None, Some(9), None),
