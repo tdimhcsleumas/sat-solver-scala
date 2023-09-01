@@ -9,7 +9,9 @@ class SatSolver(private val alg: AlgTrait) {
     private[this] val logger = getLogger
 
     def solve[A](cnf: CNF[A]): Option[Assignment[A]] = {
-        logger.info(f"Solving cnf with ${cnf.clauses.length} clauses with ${alg.getClass}")
+        logger.info(
+          f"Solving cnf with ${cnf.clauses.length} clauses with ${alg.getClass}"
+        )
 
         val mapper = new LiteralMapper(cnf)
 
@@ -28,7 +30,7 @@ class SatSolver(private val alg: AlgTrait) {
         for {
             intSolution <- alg.solve(intCnf)
             unwrapped <- {
-                val literals = intSolution.map { asgn => 
+                val literals = intSolution.map { asgn =>
                     val variable = mapper.getVariable(asgn.abs).get
                     Literal(variable, asgn > 0)
                 }.toList

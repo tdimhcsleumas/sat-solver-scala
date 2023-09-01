@@ -1,9 +1,7 @@
 package tdimhcsleumas.sat.solver.lib.algorithms
 
-/**
- * This was the first attempt. Observe its flaws.
- * It does not work.
- */
+/** This was the first attempt. Observe its flaws. It does not work.
+  */
 class NaiveAlg extends AlgTrait {
     case class Var(i: Int)
 
@@ -20,24 +18,35 @@ class NaiveAlg extends AlgTrait {
         val sorted = conj.c.sortBy(_.s.length)
 
         if (sorted.isEmpty) Some((conj, sol))
-        else for {
-            clause <- sorted.headOption
-            first <- clause.s.foldLeft[Option[(Conj, Solution)]](None) {(prev, atom) =>
-                val (variable, asg) = atom
-                // do not attempt the next variable unless the previous attempt failed.
-                prev.orElse(
-                    if (sol.s.getOrElse(variable, asg) != asg) None
-                    else {
-                        val s = sol.s + atom
-                        val c = conj.c.map(_.s).flatMap { clause =>
-                            if (clause.find(p1 => s.find(p2 => p1 == p2).isDefined).isDefined) Seq()
-                            else Seq(clause.filterNot({ case(k, v) => s.getOrElse(k, v) != v }))
-                        }.map(Clause(_))
-                        tryAssign(Conj(c), Solution(s))
-                    }
-                )
-            }
-        } yield first
+        else
+            for {
+                clause <- sorted.headOption
+                first <- clause.s.foldLeft[Option[(Conj, Solution)]](None) { (prev, atom) =>
+                    val (variable, asg) = atom
+                    // do not attempt the next variable unless the previous attempt failed.
+                    prev.orElse(
+                      if (sol.s.getOrElse(variable, asg) != asg) None
+                      else {
+                          val s = sol.s + atom
+                          val c = conj.c
+                              .map(_.s)
+                              .flatMap { clause =>
+                                  if (
+                                    clause
+                                        .find(p1 => s.find(p2 => p1 == p2).isDefined)
+                                        .isDefined
+                                  ) Seq()
+                                  else
+                                      Seq(clause.filterNot({ case (k, v) =>
+                                          s.getOrElse(k, v) != v
+                                      }))
+                              }
+                              .map(Clause(_))
+                          tryAssign(Conj(c), Solution(s))
+                      }
+                    )
+                }
+            } yield first
     }
 
     override def solve(cnf: Seq[Seq[Int]]): Option[Seq[Int]] = {
@@ -64,12 +73,13 @@ class NaiveAlg extends AlgTrait {
 
         maybeResult.map { result =>
             val (_, sol) = result
-            val fullyAssigned = nums.filterNot(num => sol.s.contains(num))
+            val fullyAssigned = nums
+                .filterNot(num => sol.s.contains(num))
                 .foldLeft(sol)((sol, num) => Solution(sol.s + ((num, True))))
 
             fullyAssigned.s.map { case (absLiteral, isAssigned) =>
                 isAssigned match {
-                    case True => absLiteral.i
+                    case True  => absLiteral.i
                     case False => -1 * absLiteral.i
                 }
             }.toSeq
