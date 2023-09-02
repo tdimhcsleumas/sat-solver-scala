@@ -15,6 +15,7 @@ import io.circe.parser._
 import io.circe.syntax._
 
 import scala.io.Source
+import scala.io.StdIn
 
 // sudoku-cli [ -f input.json ] [ -o output.json ]
 // reads a file or stdin for a nested json array of integers
@@ -30,13 +31,10 @@ object Main extends CommandApp(
     header = "Solve a json encoded sudoku problem. Numbers 1-9 are considered assigned and 0 is treated as unassigned.",
     main = {
         val fileOpt = Opts.option[String]("input", "Path to the input file.")
-            .map(path => Source.fromFile(path))
-            .withDefault(Source.fromInputStream(System.in))
-            .mapValidated { inputFile =>
-                val lines = inputFile.getLines.foldLeft("") { (add, next) =>
-                    add + next
-                }
-
+            .map(path => Source.fromFile(path).getLines())
+            .withDefault(Iterator.continually(StdIn.readLine))
+            .mapValidated { stream =>
+                val lines = stream.takeWhile(_ != null).mkString("\n")
                 decode[List[List[Int]]](lines) match {
                     case Left(e) => Validated.invalidNel(s"Failed to parse board: ${e.getMessage}")
                     case Right(s) => Validated.valid(s)
