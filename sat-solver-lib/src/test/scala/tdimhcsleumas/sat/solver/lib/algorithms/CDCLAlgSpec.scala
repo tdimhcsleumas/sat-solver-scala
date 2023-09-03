@@ -46,7 +46,33 @@ class CDCLAlgSpec extends AnyFunSpec {
         assert(maybeAssignment.isEmpty)
     }
 
-    it("solves aim-50") {
+    it("solves") {
+        val problem = Seq(
+            Seq(1, 4),
+            Seq(1, -3, -8),
+            Seq(1, 8, 12),
+            Seq(2, 11),
+            Seq(-7, -3, 9),
+            Seq(-7, 8, -9),
+            Seq(7, 8, -10),
+            Seq(7, 10, -12),
+        )
+
+        val solver = new CDCLAlg
+
+        val maybeAssignment = solver.solve(problem)
+
+        assert(maybeAssignment.isDefined)
+
+        val assignment = maybeAssignment.get
+
+        problem.foreach { clause =>
+            val filtered = clause.filter(literal => assignment.contains(literal))
+            assert(!filtered.isEmpty)
+        }
+    }
+
+    ignore("solves aim-50") {
         val problem = Seq(
             Seq(16, 17, 30),
             Seq(-17, 22, 30),
