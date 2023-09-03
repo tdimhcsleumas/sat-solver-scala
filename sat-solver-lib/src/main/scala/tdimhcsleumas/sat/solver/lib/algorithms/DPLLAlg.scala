@@ -5,9 +5,13 @@ import scala.math
 import org.log4s._
 
 class DPLLAlg extends AlgTrait {
+    case class ProblemInstance(
+        cnf: Seq[Seq[Int]],
+        assignment: Seq[Int]
+    )
+
     private[this] val logger = getLogger
     // https://en.wikipedia.org/wiki/DPLL_algorithm#The_algorithm
-    
 
     def propagate(cnf: Seq[Seq[Int]], unit: Int): Seq[Seq[Int]] = {
         cnf.flatMap { literals =>
@@ -38,41 +42,52 @@ class DPLLAlg extends AlgTrait {
             map + ((absLiteral, updatedSet))
         }
 
-        literalToDefinedSet.find { case (_, definedSet) =>
-            definedSet == 2 || definedSet == 1
-        }.map { case(i, definedSet) =>
-            if (definedSet == 2) {
-                i
-            } else {
-                -1 * i
+        literalToDefinedSet
+            .find { case (_, definedSet) =>
+                definedSet == 2 || definedSet == 1
             }
-        }
+            .map { case (i, definedSet) =>
+                if (definedSet == 2) {
+                    i
+                } else {
+                    -1 * i
+                }
+            }
     }
 
-    @tailrec private def unitPropagation(cnf: Seq[Seq[Int]], assignment: Seq[Int]): (Seq[Seq[Int]], Seq[Int]) = {
-        val maybeUnit = findUnit(cnf)
-        maybeUnit match {
-            case None => (cnf, assignment)
-            case Some(unit) => {
-                logger.debug(s"Eliminating unit: $unit")
 
-                val newCnf = propagate(cnf, unit)
-                val newAssignment = assignment :+ unit
-                unitPropagation(newCnf, newAssignment)
-            }
-        }
-    }
-
-    @tailrec private def pureLiteralElimination(cnf: Seq[Seq[Int]], assignment: Seq[Int]): (Seq[Seq[Int]], Seq[Int]) = {
-        val maybePure = findPure(cnf)
+    @tailrec private def pureLiteralElimination(instance: ProblemInstance): Option[ProblemInstance] = {
+        val maybePure = findPure(instance.cnf)
         maybePure match {
-            case None => (cnf, assignment)
+            case None => Some(instance)
             case Some(pure) => {
                 logger.debug(s"Eliminating pure: $pure")
 
-                val newCnf = propagate(cnf, pure)
-                val newAssignment = assignment :+ pure
-                pureLiteralElimination(newCnf, newAssignment)
+                val newCnf = propagate(instance.cnf, pure)
+                if (newCnf.find(literals => literals.length == 0).isDefined) {
+                    None
+                } else {
+                    val newAssignment = instance.assignment :+ pure
+                    pureLiteralElimination(instance.copy(cnf = newCnf, assignment = newAssignment))
+                }
+            }
+        }
+    }
+
+    @tailrec private def unitPropagation(instance: ProblemInstance): Option[ProblemInstance] = {
+        val maybeUnit = findUnit(instance.cnf)
+        maybeUnit match {
+            case None => Some(instance)
+            case Some(unit) => {
+                logger.debug(s"Eliminating unit: $unit")
+
+                val newCnf = propagate(instance.cnf, unit)
+                if (newCnf.find(literals => literals.length == 0).isDefined) {
+                    None
+                } else {
+                    val newAssignment = instance.assignment :+ unit
+                    unitPropagation(instance.copy(cnf = newCnf, assignment = newAssignment))
+                }
             }
         }
     }
@@ -92,39 +107,37 @@ class DPLLAlg extends AlgTrait {
         maxI
     }
 
-    def solveRecurse(cnf: Seq[Seq[Int]], assignment: Seq[Int]): Option[Seq[Int]] = {
-        logger.debug(s"assigned: ${assignment.length} variables")
+
+    def solveRecurse(instance: ProblemInstance): Option[Seq[Int]] = {
+        logger.debug(s"assigned: ${instance.assignment.length} variables")
 
         // unit propagation
-        val (unitCnf, unitAssignment) = unitPropagation(cnf, assignment)
+        val maybePropagation = unitPropagation(instance).flatMap { unitInstance =>
+            pureLiteralElimination(unitInstance)
+        }
 
-        // pure literal elimination
-        val (pureCnf, pureAssignment) = pureLiteralElimination(unitCnf, unitAssignment)
+        maybePropagation match {
+            case None => None
+            case Some(unitInstance) if unitInstance.cnf.length == 0 => Some(unitInstance.assignment)
+            case Some(unitInstance) => {
+                // backtracking
+                val ProblemInstance(cnf, assignment) = unitInstance
+                val literal = chooseLiteral(cnf)
 
-        if (pureCnf.length == 0) {
-            logger.debug("Succeeded!")
+                logger.debug(s"Guessing: $literal")
 
-            Some(pureAssignment)
-        } else if (pureCnf.find(clause => clause.isEmpty).isDefined) {
-            logger.debug("Failed!")
-
-            None
-        } else {
-            // backtracking
-            val maxI = chooseLiteral(pureCnf)
-
-            logger.debug(s"Guessing: $maxI")
-
-            val maybeInclude = solveRecurse(pureCnf :+ Seq(maxI), pureAssignment)
-            maybeInclude match {
-                case None => {
-                    logger.debug(s"Guessing: -$maxI")
-                    solveRecurse(pureCnf :+ Seq(-1 * maxI), pureAssignment)
+                val maybeInclude = solveRecurse(unitInstance.copy(cnf = cnf:+ Seq(literal), assignment = assignment))
+                maybeInclude match {
+                    case None => {
+                        logger.debug(s"Guessing: -$literal")
+                        solveRecurse(unitInstance.copy(cnf = cnf :+ Seq(-1 * literal), assignment = assignment))
+                    }
+                    case _ => maybeInclude
                 }
-                case _ => maybeInclude
             }
         }
     }
 
-    override def solve(cnf: Seq[Seq[Int]]): Option[Seq[Int]] = solveRecurse(cnf, Seq())
+
+    override def solve(cnf: Seq[Seq[Int]]): Option[Seq[Int]] = solveRecurse(ProblemInstance(cnf, Seq()))
 }

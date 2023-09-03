@@ -8,15 +8,32 @@ import cats.syntax.all._
 
 class ImplicationGraph(private val graph: Map[Int, Set[Int]] = Map()) {
     def implies(implVertices: Set[Int], vertex: Int): ImplicationGraph = {
-        val newGraph = graph + ((vertex, implVertices))
+        val existingImp = graph.getOrElse(vertex, Set[Int]())
+        val newGraph = graph + ((vertex, implVertices.union(existingImp)))
         new ImplicationGraph(newGraph)
+    }
+
+    private def materializeImplSet(vertex: Int): Set[Int] = {
+        val maybeImpl = graph.get(vertex)
+        maybeImpl match {
+            case None => Set()
+            case Some(impl) => impl.foldLeft(impl) { (set, v) =>
+                set.union(materializeImplSet(v))
+            }
+        }
     }
 
     def findCut(vertexA: Int, vertexB: Int): Set[Int] = {
         val implA = graph.getOrElse(vertexA, Set[Int]())
         val implB = graph.getOrElse(vertexB, Set[Int]())
+        // val implA = materializeImplSet(vertexA)
+        // val implB = materializeImplSet(vertexB)
 
         implA.intersect(implB)
+    }
+
+    override def toString(): String = {
+        graph.toString()
     }
 }
 
@@ -28,15 +45,22 @@ Differences from DPLL:
 * 
 */
 
-case class ProblemInstance(
-    cnf: Seq[Seq[Int]],
-    assignment: Seq[Int]
-)
 
 class CDCLAlg extends AlgTrait {
+    case class ProblemInstance(
+        origCnf: Seq[Seq[Int]],
+        cnf: Seq[Seq[Int]],
+        assignment: Seq[Int],
+        implGraph: ImplicationGraph,
+    )
+
+    case class History(
+        history: Map[Set[Int], ProblemInstance]
+    )
+
     private[this] val logger = getLogger
 
-    def propagateUnit(cnf: Seq[Seq[Int]], unit: Int): Seq[Seq[Int]] = {
+    def propagate(cnf: Seq[Seq[Int]], unit: Int): Seq[Seq[Int]] = {
         cnf.flatMap { literals =>
             if (literals.contains(unit)) {
                 List()
@@ -47,58 +71,63 @@ class CDCLAlg extends AlgTrait {
         }
     }
 
-    @tailrec private def propagateUnits(instance: ProblemInstance, units: List[Int]): Either[Int, ProblemInstance] = {
-        units match {
-            case Nil => Right(instance)
-            case unit :: tail => {
-                val updatedCnf = propagateUnit(instance.cnf, unit)
-                if (updatedCnf.find(literals => literals.isEmpty).isDefined) {
-                    Left(unit)
+    def findUnit(cnf: Seq[Seq[Int]]): Option[Int] = {
+        cnf.find(clause => clause.length == 1).map(_(0))
+    }
+
+    @tailrec private def unitPropagation(instance: ProblemInstance): Option[ProblemInstance] = {
+        val maybeUnit = findUnit(instance.cnf)
+        maybeUnit match {
+            case None => Some(instance)
+            case Some(unit) => {
+                logger.debug(s"Eliminating unit: $unit")
+
+                val newCnf = propagate(instance.cnf, unit)
+                if (newCnf.find(literals => literals.length == 0).isDefined) {
+                    None
                 } else {
-                    propagateUnits(ProblemInstance(updatedCnf, instance.assignment :+ unit), tail)
+                    val newAssignment = instance.assignment :+ unit
+                    unitPropagation(instance.copy(cnf = newCnf, assignment = newAssignment))
                 }
             }
         }
     }
 
-    private def findUnits(cnf: Seq[Seq[Int]]): List[Int] = {
-        cnf.filter(clause => clause.length == 1).map(_(0)).toList
+    // this is likely the place to try out new heuristics
+    // for now, select the literal with the highest occurence in the cnf
+    def chooseLiteral(cnf: Seq[Seq[Int]]): Int = {
+        val flattened = cnf.flatMap(clause => clause.map(_.abs)).toSet
+
+        flattened.min
     }
 
-    private def chooseLiteral(cnf: Seq[Seq[Int]]): Int = {
-        val flattened = cnf.flatMap(clause => clause)
+    def solveRecurse(instance: ProblemInstance): Option[Seq[Int]] = {
+        logger.debug(s"assigned: ${instance.assignment.length} variables")
 
-        val numToCountMap = flattened.foldLeft[Map[Int, Int]](Map()) { (map, literal) =>
-            val count = map.getOrElse(literal, 0)
-            map + ((literal, count + 1))
-        }
+        // unit propagation
+        val maybePropagation = unitPropagation(instance)
 
-        val (maxI, _) = numToCountMap.max
-        maxI
-    }
+        maybePropagation match {
+            case None => None
+            case Some(unitInstance) if unitInstance.cnf.length == 0 => Some(unitInstance.assignment)
+            case Some(unitInstance) => {
+                // backtracking
+                val ProblemInstance(_, cnf, assignment, _) = unitInstance
+                val literal = chooseLiteral(cnf)
 
-    private def tryAssign(instance: ProblemInstance, literal: Int): Option[Seq[Int]] = {
-        val maybePropagated = propagateUnits(instance, findUnits(instance.cnf :+ Seq(literal)))
+                logger.debug(s"Guessing: $literal")
 
-        maybePropagated match {
-            case Left(unit) => {
-                logger.debug(s"$unit caused the conflict")
-                None
+                val maybeInclude = solveRecurse(unitInstance.copy(cnf = cnf:+ Seq(literal), assignment = assignment))
+                maybeInclude match {
+                    case None => {
+                        logger.debug(s"Guessing: -$literal")
+                        solveRecurse(unitInstance.copy(cnf = cnf :+ Seq(-1 * literal), assignment = assignment))
+                    }
+                    case _ => maybeInclude
+                }
             }
-            case Right(ProblemInstance(cnf, assignment)) if (cnf.isEmpty) => Some(assignment)
-            case Right(updatedInstance) => solveRecurse(updatedInstance)
         }
     }
 
-    private def solveRecurse(instance: ProblemInstance): Option[Seq[Int]] = {
-        val literal = chooseLiteral(instance.cnf)
-
-        val withLiteral = tryAssign(instance, literal)
-        withLiteral match {
-            case None => tryAssign(instance, -1 * literal)
-            case Some(_) => withLiteral
-        }
-    }
-
-    override def solve(cnf: Seq[Seq[Int]]): Option[Seq[Int]] = solveRecurse(ProblemInstance(cnf, Seq()))
+    override def solve(cnf: Seq[Seq[Int]]): Option[Seq[Int]] = solveRecurse(ProblemInstance(cnf, cnf, Seq(), new ImplicationGraph))
 }

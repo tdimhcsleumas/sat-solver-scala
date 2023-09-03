@@ -10,7 +10,7 @@ class SudokuSolver(private val problemSize: Int = 9) {
         val cnfCreatorService = new CnfCreatorService(problemSize)
 
         val solver = SatSolver.builder()
-            .algorithm(DPLL)
+            .algorithm(CDCL)
             .build()
 
         val solverService = new SolverService(problemSize, cnfCreatorService, solver)
