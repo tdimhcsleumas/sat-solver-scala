@@ -78,6 +78,26 @@ lazy val commonSettings = Seq(
     "Typesafe repository".at("https://dl.bintray.com/typesafe/maven-releases/")
   ),
   libraryDependencies ++= commonDependencies ++ compilerPlugins,
+  assembly / assemblyJarName := name.value + ".jar",
+  assembly / assemblyMergeStrategy := {
+    case PathList("META-INF", "MANIFEST.MF") => MergeStrategy.discard
+    case "application.conf" => MergeStrategy.concat
+    case PathList(xs @ _*)
+        if Set(
+          "module-info.class",
+          "mime.types",
+          "public-suffix-list.txt"
+        ).contains(xs.last) =>
+      MergeStrategy.discard
+    case PathList("javax", _ @_*) => MergeStrategy.last
+    case PathList("com", "google", _ @_*) => MergeStrategy.last
+    case s => MergeStrategy.first
+  },
+  assembly / assemblyShadeRules := Seq(
+    ShadeRule.rename("com.google.protobuf.**" -> "new_proto.@1").inAll,
+    ShadeRule.rename("shapeless.**" -> "new_shapeless.@1").inAll,
+    ShadeRule.rename("cats.kernel.**" -> s"new_cats.kernel.@1").inAll
+  ),
   evictionErrorLevel := Level.Info,
   Test / parallelExecution := false,
   Test / fork := false,
