@@ -129,70 +129,34 @@ class CDCLAlg extends AlgTrait {
         -1 * flattened.min
     }
 
-    def solveRecurse(instance: ProblemInstance, history: Seq[ProblemInstance]): Either[Set[Int], Seq[Int]] = {
-        logger.debug(s"assigned: ${instance.assignment.length} variables")
+    // The clause learned should really be the first UIP cut
+    def solveRecurse(instance: ProblemInstance, history: Seq[ProblemInstance], decisionLevel: Int): Either[Set[Int], Seq[Int]] = ???
+    // {
+    //     logger.debug(s"assigned: ${instance.assignment.length} variables")
 
-        // unit propagation
-        val maybePropagation = unitPropagation(instance)
+    //     // unit propagation
+    //     val maybePropagation = unitPropagation(instance)
 
-        maybePropagation match {
-            case Left(cut) => {
-                logger.info(s"cut: $cut")
-                val additionalClause = cut.toSeq.map(num => -1 * num)
+    //     maybePropagation match {
+    //         case Left(cut) => Left(cut)
+    //         case Right(unitInstance) if unitInstance.cnf.length == 0 => Right(unitInstance.assignment)
+    //         case Right(unitInstance) => {
+    //             val ProblemInstance(_, cnf, assignment, _) = unitInstance
+    //             val literal = chooseLiteral(cnf)
 
-                history.zipWithIndex.foreach { case(prevInstance, i) =>
-                    logger.info(s"previousInstance: $i")
-                    logger.info("cnf")
-                    prevInstance.cnf.foreach { clause =>
-                        logger.info(s"$clause")
-                    }
-                    logger.info(s"assignment: ${prevInstance.assignment}")
-                    logger.info("")
-                }
+    //             logger.info(s"Guessing: $literal")
 
-                val maybeHistory = history.zipWithIndex
-                    .find { case(prevInstance, _) => prevInstance.assignment.find(num => cut.contains(num)).isDefined }
-
-                maybeHistory match {
-                    case None => Left(cut)
-                    case Some((_, i)) if i == 0 => Left(cut)
-                    case Some((_, i)) => {
-                        val selected = i - 1
-                        val prevInstance = history(selected)
-                        val updatedOrigCnf = prevInstance.origCnf :+ additionalClause
-                        val updatedCnf = prevInstance.cnf :+ additionalClause
-
-                        logger.info(s"$selected: ${prevInstance.assignment}")
-
-                        Left(cut)
-                    }
-                } 
-            }
-            case Right(unitInstance) if unitInstance.cnf.length == 0 => Right(unitInstance.assignment)
-            case Right(unitInstance) => {
-                // backtracking
-                val ProblemInstance(_, cnf, assignment, _) = unitInstance
-                val literal = chooseLiteral(cnf)
-
-                logger.info(s"Guessing: $literal")
-
-                val positiveInstance = unitInstance.copy(cnf = cnf:+ Seq(literal), assignment = assignment)
-                val maybeInclude = solveRecurse(positiveInstance, history :+ positiveInstance)
-                maybeInclude match {
-                    case Left(cut) => {
-                        logger.info(s"Guessing: ${-1 * literal}")
-                        val negativeInstance = unitInstance.copy(cnf = cnf :+ Seq(-1 * literal), assignment = assignment)
-                        solveRecurse(negativeInstance, history :+ negativeInstance)
-                    }
-                    case _ => maybeInclude
-                }
-            }
-        }
-    }
+    //             val positiveInstance = unitInstance.copy(cnf = cnf:+ Seq(literal), assignment = assignment, decisionLevel + 1)
+    //             solveRecurse(positiveInstance, history :+ positiveInstance) match {
+    //                 // backtracking
+    //             }
+    //         }
+    //     }
+    // }
 
     override def solve(cnf: Seq[Seq[Int]]): Option[Seq[Int]] = {
         val initialProblem = ProblemInstance(cnf, cnf, Seq(), new ImplicationGraph)
-        solveRecurse(initialProblem, Seq(initialProblem)) match {
+        solveRecurse(initialProblem, Seq(initialProblem), 0) match {
             case Left(_) => None
             case Right(assignment) => Some(assignment)
         }
