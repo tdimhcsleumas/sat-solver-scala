@@ -15,23 +15,23 @@ class DPLLAlg extends AlgTrait {
 
     def findUnit(instance: ProblemInstance): Option[(Int, Boolean)] = {
         val ProblemInstance(cnf, _, assignment) = instance
-        cnf.find { clause =>
+        val maybeUnit = cnf.find { clause =>
             // unit: 
             // a. 1 literal clause
             // b. other assigned literals are false in the clause
             val satisfiedVariable = clause.find { case(variable, isTrue) =>
                 assignment.get(variable).map(asgn => asgn == isTrue).getOrElse(false)
             }
-            satisfiedVariable match {
-                case Some(_) => false
-                // search for assignments that can be ignored in the clause
-                case None => clause.filter { case(variable, _) => assignment.get(variable).isEmpty }.length == 1
+            if (satisfiedVariable.isDefined) {
+                false
+            } else {
+                clause.filter { case(variable, _) => assignment.get(variable).isEmpty }.length == 1
             }
         }
-            .map(_(0))
+        maybeUnit.flatMap(_.find { case(variable, _) => assignment.get(variable).isEmpty })
     }
 
-    @tailrec private def unitPropagation(instance: ProblemInstance): Option[ProblemInstance] = {
+    @tailrec final def unitPropagation(instance: ProblemInstance): Option[ProblemInstance] = {
         val maybeUnit = findUnit(instance)
         maybeUnit match {
             case None => Some(instance)
@@ -42,7 +42,7 @@ class DPLLAlg extends AlgTrait {
 
                 val conflictingClause = instance.cnf.find { clause =>
                     clause.filter { case (variable, isTrue) =>
-                        instance.assignment.get(variable) match {
+                        newAssignment.get(variable) match {
                             case None => true
                             case Some(asgn) => asgn == isTrue
                         }
@@ -67,6 +67,7 @@ class DPLLAlg extends AlgTrait {
 
     def solveRecurse(instance: ProblemInstance): Option[Map[Int, Boolean]] = {
         logger.debug(s"assigned: ${instance.assignment.size} variables")
+
 
         // unit propagation
         val maybePropagation = unitPropagation(instance)
