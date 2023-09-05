@@ -52,10 +52,18 @@ Differences from DPLL:
 
 
 class CDCLAlg extends AlgTrait {
+    case class TrailEnt(
+        literal: (Int, Boolean), // 0 for conflic symbol
+        decisionLevel: Int,
+        reason: Option[Seq[(Int, Boolean)]], // either a decision or a clause
+    )
+
     case class ProblemInstance(
         cnf: Seq[Seq[(Int, Boolean)]],
         variables: Set[Int],
-        assignment: Map[Int, Boolean]
+        assignment: Map[Int, Boolean],
+        decisionLevel: Int,
+        trail: Seq[TrailEnt],
     )
 
     private[this] val logger = getLogger
@@ -64,9 +72,9 @@ class CDCLAlg extends AlgTrait {
         history: Map[Set[Int], ProblemInstance]
     )
 
-    def findUnit(instance: ProblemInstance): Option[(Int, Boolean)] = {
-        val ProblemInstance(cnf, _, assignment) = instance
-        val maybeUnit = cnf.find { clause =>
+    def findUnitClause(instance: ProblemInstance): Option[((Int, Boolean), Seq[(Int, Boolean)])] = {
+        val ProblemInstance(cnf, _, assignment, _, _) = instance
+        val maybeUnitClause = cnf.find { clause =>
             // unit: 
             // a. 1 literal clause
             // b. other assigned literals are false in the clause
@@ -79,31 +87,44 @@ class CDCLAlg extends AlgTrait {
                 clause.filter { case(variable, _) => assignment.get(variable).isEmpty }.length == 1
             }
         }
-        maybeUnit.flatMap(_.find { case(variable, _) => assignment.get(variable).isEmpty })
+        val maybeUnit = maybeUnitClause.flatMap(_.find { case(variable, _) => assignment.get(variable).isEmpty })
+        (maybeUnit, maybeUnitClause).mapN((unit, clause) => (unit, clause))
     }
 
-    @tailrec final def unitPropagation(instance: ProblemInstance): Option[ProblemInstance] = {
-        val maybeUnit = findUnit(instance)
-        maybeUnit match {
-            case None => Some(instance)
-            case Some(unit) => {
-                logger.debug(s"Eliminating unit: $unit")
-
-                val newAssignment = instance.assignment + unit
-
-                val conflictingClause = instance.cnf.find { clause =>
-                    clause.filter { case (variable, isTrue) =>
-                        newAssignment.get(variable) match {
-                            case None => true
-                            case Some(asgn) => asgn == isTrue
-                        }
-                    }.length == 0
+    def findConflict(instance: ProblemInstance): Option[Seq[(Int, Boolean)]] = {
+        val conflictingClause = instance.cnf.find { clause =>
+            clause.filter { case (variable, isTrue) =>
+                instance.assignment.get(variable) match {
+                    case None => true
+                    case Some(asgn) => asgn == isTrue
                 }
+            }.length == 0
+        }
 
-                if (conflictingClause.isDefined) {
-                    None
-                } else {
-                    unitPropagation(instance.copy(assignment = newAssignment))
+        conflictingClause
+    }
+
+    @tailrec final def unitPropagation(instance: ProblemInstance): Either[Seq[TrailEnt], ProblemInstance] = {
+        val maybeClause = findUnitClause(instance)
+        maybeClause match {
+            case None => Right(instance)
+            case Some((unit, clause)) => {
+                logger.debug(s"Eliminating unit: $unit")
+  
+                val newInstance = instance.copy(
+                    assignment = instance.assignment + unit,
+                    trail = instance.trail :+ TrailEnt(
+                        unit,
+                        instance.decisionLevel,
+                        Some(clause)
+                    )
+                )
+
+                val maybeConflictingClause = findConflict(newInstance)
+
+                maybeConflictingClause match {
+                    case None => unitPropagation(newInstance)
+                    case Some(_) => Left(newInstance.trail)
                 }
             }
         }
@@ -115,33 +136,32 @@ class CDCLAlg extends AlgTrait {
     }
 
     // consider only the first uip for back tracking
-    def solveRecurse(instance: ProblemInstance): Option[Map[Int, Boolean]] = {
+    // in the trail of assignment, we need to differentiate between a decided assignment and a unit assignment
+    def solveRecurse(instance: ProblemInstance): Either[Seq[TrailEnt], Map[Int, Boolean]] = {
         logger.debug(s"assigned: ${instance.assignment.size} variables")
-
 
         // unit propagation
         val maybePropagation = unitPropagation(instance)
 
         maybePropagation match {
-            case None => None
-            case Some(unitInstance) => {
-                val ProblemInstance(cnf, _, assignment) = unitInstance
+            case Left(trail) => Left(trail)
+            case Right(unitInstance) => {
                 chooseLiteral(unitInstance) match {
-                    case None => Some(assignment)
+                    case None => Right(unitInstance.assignment)
                     case Some(literal) => {
                         // backtracking
                         logger.debug(s"Guessing: $literal")
 
-                        val maybeInclude = solveRecurse(unitInstance.copy(cnf = cnf :+ Seq(literal)))
+                        val decisionLevel = unitInstance.decisionLevel + 1
+
+                        val decisionInstance = unitInstance.copy(
+                            assignment = unitInstance.assignment + literal,
+                            decisionLevel = decisionLevel,
+                            trail = unitInstance.trail :+ TrailEnt(literal, decisionLevel, None)
+                        )
+                        val maybeInclude = solveRecurse(decisionInstance)
                         maybeInclude match {
-                            case None => {
-                                val (variable, isTrue) = literal
-                                val opposite = (variable, !isTrue)
-
-                                logger.debug(s"Guessing: $opposite")
-
-                                solveRecurse(unitInstance.copy(cnf = cnf :+ Seq(opposite)))
-                            }
+                            case Left(trail) => ??? // conflict analysis. backtrack to appropriate decision level
                             case _ => maybeInclude
                         }
                     }
@@ -153,16 +173,20 @@ class CDCLAlg extends AlgTrait {
     override def solve(cnf: Seq[Seq[Int]]): Option[Seq[Int]] = {
         val mappedCnf = cnf.map { clause => clause.map(num => (num.abs, num > 0)) }
         val variables = cnf.flatMap { clause => clause.map(_.abs) }.toSet
-        val instance = ProblemInstance(mappedCnf, variables, Map())
+        val instance = ProblemInstance(mappedCnf, variables, Map(), 0, Seq())
 
-        solveRecurse(instance).map { assignment =>
-            assignment.map { case(variable, isTrue) =>
-                if (isTrue) {
-                    variable
-                } else {
-                    -1 * variable
-                }
-            }.toSeq
+        solveRecurse(instance) match {
+            case Left(_) => None
+            case Right(assignment) => {
+                val seqAssignment = assignment.map { case(variable, isTrue) =>
+                    if (isTrue) {
+                        variable
+                    } else {
+                        -1 * variable
+                    }
+                }.toSeq
+                Some(seqAssignment)
+            }
         }
     }
 }
