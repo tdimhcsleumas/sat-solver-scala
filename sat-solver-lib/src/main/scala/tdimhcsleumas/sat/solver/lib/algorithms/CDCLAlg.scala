@@ -6,41 +6,6 @@ import org.log4s._
 
 import cats.syntax.all._
 
-class ImplicationGraph(private val graph: Map[Int, Set[Int]] = Map()) {
-    private[this] val logger = getLogger
-
-    def implies(implVertices: Set[Int], vertex: Int): ImplicationGraph = {
-        val existingImp = graph.getOrElse(vertex, Set[Int]())
-        val newGraph = graph + ((vertex, implVertices.union(existingImp)))
-        new ImplicationGraph(newGraph)
-    }
-
-    private def materializeImplSet(vertex: Int): Set[Int] = {
-        val maybeImpl = graph.get(vertex)
-        maybeImpl match {
-            case None => Set()
-            case Some(impl) => impl.foldLeft(impl) { (set, v) =>
-                set.union(materializeImplSet(v))
-            }
-        }
-    }
-
-    def findCut(vertexA: Int, vertexB: Int): Set[Int] = {
-        // val implA = graph.getOrElse(vertexA, Set[Int]())
-        // val implB = graph.getOrElse(vertexB, Set[Int]())
-        val implA = materializeImplSet(vertexA)
-        val implB = materializeImplSet(vertexB)
-
-        logger.info(s"implA: ${implA} implies $vertexA")
-        logger.info(s"implB: ${implB} implies $vertexB")
-
-        implA.intersect(implB)
-    }
-
-    override def toString(): String = {
-        graph.toString()
-    }
-}
 
 /*
 Differences from DPLL:
@@ -52,6 +17,8 @@ Differences from DPLL:
 
 
 class CDCLAlg extends AlgTrait {
+    private[this] val logger = getLogger
+
     case class TrailEnt(
         literal: (Int, Boolean), // 0 for conflic symbol
         decisionLevel: Int,
@@ -66,7 +33,35 @@ class CDCLAlg extends AlgTrait {
         trail: Seq[TrailEnt],
     )
 
-    private[this] val logger = getLogger
+    private val conflictSymbol = (0, true)
+
+    class ImplicationGraph[A](private val graph: Map[A, Set[A]] = Map[A, Set[A]]()) {
+        private[this] val logger = getLogger
+
+        def implies(implVertices: Set[A], vertex: A): ImplicationGraph[A] = {
+            val existingImp = graph.getOrElse(vertex, Set[A]())
+            val newGraph = graph + ((vertex, implVertices.union(existingImp)))
+            new ImplicationGraph(newGraph)
+        }
+
+        private def materializeImplSet(vertex: A): Set[A] = {
+            val maybeImpl = graph.get(vertex)
+            maybeImpl match {
+                case None => Set()
+                case Some(impl) => impl.foldLeft(impl) { (set, v) =>
+                    set.union(materializeImplSet(v))
+                }
+            }
+        }
+
+        def findCut(vertexA: A): Set[A] = {
+            ???
+        }
+
+        override def toString(): String = {
+            graph.toString()
+        }
+    }
 
     case class History(
         history: Map[Set[Int], ProblemInstance]
@@ -124,7 +119,8 @@ class CDCLAlg extends AlgTrait {
 
                 maybeConflictingClause match {
                     case None => unitPropagation(newInstance)
-                    case Some(_) => Left(newInstance.trail)
+                    case Some(conflictClause) =>
+                        Left(newInstance.trail :+ TrailEnt(conflictSymbol, instance.decisionLevel, Some(conflictClause)))
                 }
             }
         }
@@ -133,6 +129,50 @@ class CDCLAlg extends AlgTrait {
     def chooseLiteral(instance: ProblemInstance): Option[(Int, Boolean)] = {
         val unassigned = instance.variables.find(variable => !instance.assignment.contains(variable))
         unassigned.map(variable => (variable, true))
+    }
+
+    // precondition: non-empty trail 
+    def conflictAnalysis(instance: ProblemInstance, trail: Seq[TrailEnt]): ProblemInstance = {
+        // build the implication graph
+        val implicationGraph = trail.foldLeft(new ImplicationGraph[(Int, Boolean)]) { (graph, entry) =>
+            val TrailEnt(literal, _, reason) = entry
+            val (variable, _) = literal
+            reason match {
+                case Some(clause) => {
+                    val implicators = clause.filter{ case (testVariable, _) => testVariable != variable }
+                        .map{ case (implVariable, isTrue) => (implVariable, !isTrue) }
+                        .toSet
+                    graph.implies(implicators, literal)
+                }
+                case None => graph.implies(Set(), literal)
+            }
+        }
+        val literalDecisionLevels = trail.foldLeft(Map[(Int, Boolean), TrailEnt]()) { (map, entry) => map + ((entry.literal, entry)) }
+
+        // find the cut
+        val cut = implicationGraph.findCut(conflictSymbol)
+        val learnedClause = cut.toSeq.map { case (variable, isTrue) => (variable, !isTrue) }
+        val newCnf = instance.cnf :+ learnedClause
+
+        if (cut.size == 1) {
+            // return to level 0
+            instance.copy(cnf = newCnf, assignment = Map(), decisionLevel = 0, trail = Seq())
+        } else {
+            // unsafely grab the second highest level
+            val levels = learnedClause.map {literal => literalDecisionLevels.get(literal).get.decisionLevel }
+                .sortWith(_ > _)
+            val level = levels(1)
+
+            // delete assignments in levels greater than level
+            val updatedAssignments = instance.assignment.filter { literal =>
+                literalDecisionLevels.get(literal).get.decisionLevel <= level
+            }
+
+            // delete trail items in levels greater than level
+            val updatedTrail = trail.filter { case TrailEnt(_, decisionLevel, _) => decisionLevel <= level }
+
+            instance.copy(cnf = newCnf, assignment = updatedAssignments, decisionLevel = level, trail = updatedTrail)
+        }
     }
 
     // consider only the first uip for back tracking
@@ -161,7 +201,7 @@ class CDCLAlg extends AlgTrait {
                         )
                         val maybeInclude = solveRecurse(decisionInstance)
                         maybeInclude match {
-                            case Left(trail) => ??? // conflict analysis. backtrack to appropriate decision level
+                            case Left(trail) => solveRecurse(conflictAnalysis(decisionInstance, trail)) // conflict analysis. backtrack to appropriate decision level
                             case _ => maybeInclude
                         }
                     }
