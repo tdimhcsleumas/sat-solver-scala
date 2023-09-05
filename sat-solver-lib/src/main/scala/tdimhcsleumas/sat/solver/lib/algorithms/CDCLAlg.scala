@@ -53,112 +53,116 @@ Differences from DPLL:
 
 class CDCLAlg extends AlgTrait {
     case class ProblemInstance(
-        origCnf: Seq[Seq[Int]],
-        cnf: Seq[Seq[Int]],
-        assignment: Seq[Int],
-        implGraph: ImplicationGraph,
+        cnf: Seq[Seq[(Int, Boolean)]],
+        variables: Set[Int],
+        assignment: Map[Int, Boolean]
     )
+
+    private[this] val logger = getLogger
 
     case class History(
         history: Map[Set[Int], ProblemInstance]
     )
 
-    private[this] val logger = getLogger
-
-    def propagate(cnf: Seq[Seq[Int]], unit: Int): Seq[Seq[Int]] = {
-        cnf.flatMap { literals =>
-            if (literals.contains(unit)) {
-                List()
+    def findUnit(instance: ProblemInstance): Option[(Int, Boolean)] = {
+        val ProblemInstance(cnf, _, assignment) = instance
+        val maybeUnit = cnf.find { clause =>
+            // unit: 
+            // a. 1 literal clause
+            // b. other assigned literals are false in the clause
+            val satisfiedVariable = clause.find { case(variable, isTrue) =>
+                assignment.get(variable).map(asgn => asgn == isTrue).getOrElse(false)
+            }
+            if (satisfiedVariable.isDefined) {
+                false
             } else {
-                val inverseUnit = -1 * unit
-                List(literals.filter(literal => literal != inverseUnit))
+                clause.filter { case(variable, _) => assignment.get(variable).isEmpty }.length == 1
             }
         }
+        maybeUnit.flatMap(_.find { case(variable, _) => assignment.get(variable).isEmpty })
     }
 
-    def findUnits(cnf: Seq[Seq[Int]]): Seq[Int] = {
-        cnf.filter(clause => clause.length == 1).map(_(0))
-    }
-
-    def findUnit(cnf: Seq[Seq[Int]]): Option[Int] = {
-        cnf.find(clause => clause.length == 1).map(_(0))
-    }
-
-    @tailrec private def unitPropagation(instance: ProblemInstance): Either[Set[Int], ProblemInstance] = {
-        val maybeUnit = findUnit(instance.cnf)
+    @tailrec final def unitPropagation(instance: ProblemInstance): Option[ProblemInstance] = {
+        val maybeUnit = findUnit(instance)
         maybeUnit match {
-            case None => Right(instance)
+            case None => Some(instance)
             case Some(unit) => {
                 logger.debug(s"Eliminating unit: $unit")
 
-                val newCnf = propagate(instance.cnf, unit)
-                if (newCnf.find(literals => literals.length == 0).isDefined) {
-                    logger.info(s"assignment: ${instance.assignment}")
-                    instance.cnf.foreach { literals =>
-                        logger.info(s"$literals")
-                    }
-                    logger.info(s"conflicts on $unit")
-                    Left(instance.implGraph.findCut(unit, -1 * unit))
+                val newAssignment = instance.assignment + unit
+
+                val conflictingClause = instance.cnf.find { clause =>
+                    clause.filter { case (variable, isTrue) =>
+                        newAssignment.get(variable) match {
+                            case None => true
+                            case Some(asgn) => asgn == isTrue
+                        }
+                    }.length == 0
+                }
+
+                if (conflictingClause.isDefined) {
+                    None
                 } else {
-                    val newAssignment = instance.assignment :+ unit
-
-                    // if any *new* units were created as a result of this propagation, note the implication
-                    val implGraph = findUnits(newCnf).foldLeft(instance.implGraph) { (graph, newUnit) =>
-                        // find the assignments implicating this one
-                        // ignore clauses where the assignment agrees
-                        val implicators = instance.origCnf.filter { clause =>
-                            clause.contains(newUnit) && clause.find(literal => newAssignment.contains(literal)).isEmpty
-                        }.flatMap { clause =>
-                            newAssignment.filter(literal => clause.contains(-1 * literal))
-                        }.toSet
-
-                        graph.implies(implicators, newUnit)
-                    }
-
-                    unitPropagation(instance.copy(cnf = newCnf, assignment = newAssignment, implGraph = implGraph))
+                    unitPropagation(instance.copy(assignment = newAssignment))
                 }
             }
         }
     }
 
-    // this is likely the place to try out new heuristics
-    // for now, select the literal with the highest occurence in the cnf
-    def chooseLiteral(cnf: Seq[Seq[Int]]): Int = {
-        val flattened = cnf.flatMap(clause => clause.map(_.abs)).toSet
-
-        -1 * flattened.min
+    def chooseLiteral(instance: ProblemInstance): Option[(Int, Boolean)] = {
+        val unassigned = instance.variables.find(variable => !instance.assignment.contains(variable))
+        unassigned.map(variable => (variable, true))
     }
 
-    // The clause learned should really be the first UIP cut
-    def solveRecurse(instance: ProblemInstance, history: Seq[ProblemInstance], decisionLevel: Int): Either[Set[Int], Seq[Int]] = ???
-    // {
-    //     logger.debug(s"assigned: ${instance.assignment.length} variables")
+    // consider only the first uip for back tracking
+    def solveRecurse(instance: ProblemInstance): Option[Map[Int, Boolean]] = {
+        logger.debug(s"assigned: ${instance.assignment.size} variables")
 
-    //     // unit propagation
-    //     val maybePropagation = unitPropagation(instance)
 
-    //     maybePropagation match {
-    //         case Left(cut) => Left(cut)
-    //         case Right(unitInstance) if unitInstance.cnf.length == 0 => Right(unitInstance.assignment)
-    //         case Right(unitInstance) => {
-    //             val ProblemInstance(_, cnf, assignment, _) = unitInstance
-    //             val literal = chooseLiteral(cnf)
+        // unit propagation
+        val maybePropagation = unitPropagation(instance)
 
-    //             logger.info(s"Guessing: $literal")
+        maybePropagation match {
+            case None => None
+            case Some(unitInstance) => {
+                val ProblemInstance(cnf, _, assignment) = unitInstance
+                chooseLiteral(unitInstance) match {
+                    case None => Some(assignment)
+                    case Some(literal) => {
+                        // backtracking
+                        logger.debug(s"Guessing: $literal")
 
-    //             val positiveInstance = unitInstance.copy(cnf = cnf:+ Seq(literal), assignment = assignment, decisionLevel + 1)
-    //             solveRecurse(positiveInstance, history :+ positiveInstance) match {
-    //                 // backtracking
-    //             }
-    //         }
-    //     }
-    // }
+                        val maybeInclude = solveRecurse(unitInstance.copy(cnf = cnf :+ Seq(literal)))
+                        maybeInclude match {
+                            case None => {
+                                val (variable, isTrue) = literal
+                                val opposite = (variable, !isTrue)
+
+                                logger.debug(s"Guessing: $opposite")
+
+                                solveRecurse(unitInstance.copy(cnf = cnf :+ Seq(opposite)))
+                            }
+                            case _ => maybeInclude
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     override def solve(cnf: Seq[Seq[Int]]): Option[Seq[Int]] = {
-        val initialProblem = ProblemInstance(cnf, cnf, Seq(), new ImplicationGraph)
-        solveRecurse(initialProblem, Seq(initialProblem), 0) match {
-            case Left(_) => None
-            case Right(assignment) => Some(assignment)
+        val mappedCnf = cnf.map { clause => clause.map(num => (num.abs, num > 0)) }
+        val variables = cnf.flatMap { clause => clause.map(_.abs) }.toSet
+        val instance = ProblemInstance(mappedCnf, variables, Map())
+
+        solveRecurse(instance).map { assignment =>
+            assignment.map { case(variable, isTrue) =>
+                if (isTrue) {
+                    variable
+                } else {
+                    -1 * variable
+                }
+            }.toSeq
         }
     }
 }

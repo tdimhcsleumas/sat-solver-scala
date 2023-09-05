@@ -58,8 +58,6 @@ class DPLLAlg extends AlgTrait {
         }
     }
 
-    // this is likely the place to try out new heuristics
-    // for now, select the literal with the highest occurence in the cnf
     def chooseLiteral(instance: ProblemInstance): Option[(Int, Boolean)] = {
         val unassigned = instance.variables.find(variable => !instance.assignment.contains(variable))
         unassigned.map(variable => (variable, true))
