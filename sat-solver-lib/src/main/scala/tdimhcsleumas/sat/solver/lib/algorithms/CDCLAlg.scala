@@ -33,29 +33,51 @@ class CDCLAlg extends AlgTrait {
         trail: Seq[TrailEnt],
     )
 
+    case class GraphNode[A](
+        node: A,
+        implies: Set[A],
+        implicators: Set[A]
+    )
+
     private val conflictSymbol = (0, true)
 
-    class ImplicationGraph[A](private val graph: Map[A, Set[A]] = Map[A, Set[A]]()) {
+    class ImplicationGraph[A](private val graph: Map[A, GraphNode[A]] = Map[A, GraphNode[A]]()) {
         private[this] val logger = getLogger
 
         def implies(implVertices: Set[A], vertex: A): ImplicationGraph[A] = {
-            val existingImp = graph.getOrElse(vertex, Set[A]())
-            val newGraph = graph + ((vertex, implVertices.union(existingImp)))
+            val newImpl = graph.getOrElse(vertex, GraphNode(vertex, Set(), Set()))
+
+            val appliedGraph = implVertices.foldLeft(graph) { (g, implVertex) =>
+                val existingImpl = graph.getOrElse(implVertex, GraphNode(implVertex, Set(), Set()))
+
+                g + ((implVertex, existingImpl.copy(implies = existingImpl.implies + vertex)))
+            }
+
+            val newGraph = appliedGraph + ((vertex, newImpl.copy(implicators = newImpl.implicators.union(implVertices))))
             new ImplicationGraph(newGraph)
         }
 
-        private def materializeImplSet(vertex: A): Set[A] = {
-            val maybeImpl = graph.get(vertex)
-            maybeImpl match {
-                case None => Set()
-                case Some(impl) => impl.foldLeft(impl) { (set, v) =>
-                    set.union(materializeImplSet(v))
-                }
+        private def enumeratePaths(start: A): Seq[Seq[A]] = {
+            val partialPaths = graph.get(start).get.implies.toSeq.flatMap { vertex => enumeratePaths(vertex) }
+            partialPaths.map { path => start +: path }
+        }
+
+        def findUips(start: A): Set[A] = {
+            val paths = enumeratePaths(start)
+
+            paths match {
+                case head :: tail =>
+                    tail.foldLeft(head.toSet) { (set, comp) => set.intersect(comp.toSet) }
+                case head :: Nil => head.toSet
+                case _ => Set()
             }
         }
 
-        def findCut(vertexA: A): Set[A] = {
-            ???
+        def findCut(vertex: A): Set[A] = {
+            graph.get(vertex).get.implies.foldLeft(Set[A](vertex)) { (set, impliedVertex) =>
+                val implicators = graph.get(impliedVertex).get.implicators
+                set.union(implicators)
+            }
         }
 
         override def toString(): String = {
@@ -150,8 +172,18 @@ class CDCLAlg extends AlgTrait {
         val literalDecisionLevels = trail.foldLeft(Map[(Int, Boolean), TrailEnt]()) { (map, entry) => map + ((entry.literal, entry)) }
 
         // find the cut
-        val cut = implicationGraph.findCut(conflictSymbol)
+
+        val latestDecisionVariable = trail.filter{ case TrailEnt(_, _, reason) => reason.isEmpty }
+            .maxBy(_.decisionLevel)
+
+        val uips = implicationGraph.findUips(latestDecisionVariable.literal) - conflictSymbol
+
+        val firstCut = trail.reverse.find{ case TrailEnt(literal, _, _) => uips.contains(literal) }.get
+
+        val cut = implicationGraph.findCut(firstCut.literal)
+
         val learnedClause = cut.toSeq.map { case (variable, isTrue) => (variable, !isTrue) }
+
         val newCnf = instance.cnf :+ learnedClause
 
         if (cut.size == 1) {
