@@ -71,11 +71,6 @@ class CDCLAlg extends AlgTrait {
         def findUips(start: A): Set[A] = {
             val paths = enumeratePaths(start)
             
-            // println(s"printing ${paths.length} paths")
-            // paths.foreach { path =>
-            //     println(path)
-            // }
-
             paths.toList match {
                 case head :: tail => {
                     tail.foldLeft(head.toSet) { (set, comp) => set.intersect(comp.toSet) }
@@ -155,7 +150,6 @@ class CDCLAlg extends AlgTrait {
         maybeClause match {
             case None => Right(instance)
             case Some((unit, clause)) => {
-                // println(s"Eliminating unit: $unit")
   
                 val newInstance = instance.copy(
                     assignment = instance.assignment + unit,
@@ -184,11 +178,6 @@ class CDCLAlg extends AlgTrait {
 
     // precondition: non-empty trail 
     def conflictAnalysis(instance: ProblemInstance, trail: Seq[TrailEnt]): ProblemInstance = {
-        // println("")
-        // trail.foreach { ent =>
-            // println(ent) 
-        // }
-        // println(instance.decisionLevel)
         // build the implication graph
         val implicationGraph = trail.foldLeft(new ImplicationGraph[(Int, Boolean)]) { (graph, entry) =>
             val TrailEnt(literal, _, reason) = entry
@@ -204,8 +193,6 @@ class CDCLAlg extends AlgTrait {
             }
         }
 
-        // println(implicationGraph)
-
         val literalDecisionLevels = trail.foldLeft(Map[(Int, Boolean), TrailEnt]()) { (map, entry) => map + ((entry.literal, entry)) }
 
         // find the cut
@@ -213,21 +200,13 @@ class CDCLAlg extends AlgTrait {
         val latestDecisionVariable = trail.filter{ case TrailEnt(_, _, reason) => reason.isEmpty }
             .maxBy(_.decisionLevel)
 
-        // println(latestDecisionVariable)
-
         val uips = implicationGraph.findUips(latestDecisionVariable.literal) - conflictSymbol
 
-        // println(uips)
-
         val firstCut = trail.reverse.find { case TrailEnt(literal, _, _) => uips.contains(literal) }.get
-
-        // println(firstCut)
 
         val cut = implicationGraph.findCut(firstCut.literal)
 
         val learnedClause = cut.toSeq.map { case (variable, isTrue) => (variable, !isTrue) }
-
-        // println(learnedClause)
 
         val newCnf = instance.cnf :+ learnedClause
 
@@ -240,8 +219,6 @@ class CDCLAlg extends AlgTrait {
                 .sortWith(_ > _)
             val level = levels(1)
 
-            // println(s"level: $level")
-
             // delete trail items in levels greater than level
             val updatedTrail = trail.filter { case TrailEnt(_, decisionLevel, _) => decisionLevel <= level }
 
@@ -251,45 +228,32 @@ class CDCLAlg extends AlgTrait {
                 map + literal
             }
 
-            // if (updatedAssignments.contains(13)) {
-                // println("contains 13 true")
-            // }
-
-
             instance.copy(cnf = newCnf, assignment = updatedAssignments, decisionLevel = level, trail = updatedTrail)
         }
     }
 
     // consider only the first uip for back tracking
     // in the trail of assignment, we need to differentiate between a decided assignment and a unit assignment
-    def solveRecurse(instance: ProblemInstance): Either[Seq[TrailEnt], Map[Int, Boolean]] = {
+    @tailrec final def solveRecurse(instance: ProblemInstance): Option[Map[Int, Boolean]] = {
         logger.debug(s"assigned: ${instance.assignment.size} variables")
 
-        // println(s"propagating for ${instance.decisionLevel}")
-        // if (instance.assignment.contains(13)) {
-            // println("contains 13")
-        // }
         // unit propagation
         val maybePropagation = unitPropagation(instance)
 
         maybePropagation match {
             case Left(trail) => {
                 if (instance.decisionLevel == 0) {
-                    Left(trail)
+                    None
                 } else {
                     val backtrackInstance = conflictAnalysis(instance, trail)
-                    // println(s"learned clause: ${backtrackInstance.cnf.last}")
-                    // println(s"new level: ${backtrackInstance.decisionLevel}")
-                    // println(s"contains 13: ${backtrackInstance.assignment.contains(13)}")
                     solveRecurse(backtrackInstance) // conflict analysis. backtrack to appropriate decision level
                 }
             }
             case Right(unitInstance) => {
                 chooseLiteral(unitInstance) match {
-                    case None => Right(unitInstance.assignment)
+                    case None => Some(unitInstance.assignment)
                     case Some(literal) => {
                         // backtracking
-                        // println(s"Guessing: $literal")
 
                         val decisionLevel = unitInstance.decisionLevel + 1
 
@@ -312,8 +276,8 @@ class CDCLAlg extends AlgTrait {
         val instance = ProblemInstance(mappedCnf, variables, Map(), 0, Seq())
 
         solveRecurse(instance) match {
-            case Left(_) => None
-            case Right(assignment) => {
+            case None => None
+            case Some(assignment) => {
                 val seqAssignment = assignment.map { case(variable, isTrue) =>
                     if (isTrue) {
                         variable
