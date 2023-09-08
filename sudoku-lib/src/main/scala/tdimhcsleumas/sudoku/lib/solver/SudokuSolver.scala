@@ -13,7 +13,8 @@ class SudokuSolver(private val problemSize: Int = 9) {
             .algorithm(CDCL)
             .build()
 
-        val solverService = new SolverService(problemSize, cnfCreatorService, solver)
+        val solverService =
+            new SolverService(problemSize, cnfCreatorService, solver)
 
         solverService.solve(problem)
     }
@@ -24,9 +25,11 @@ object SudokuSolver {
 }
 
 class SudokuSolverBuilder(problemSize: Int = 9) {
-    def problemSize(_size: Int): SudokuSolverBuilder = new SudokuSolverBuilder(_size)
+    def problemSize(_size: Int): SudokuSolverBuilder = new SudokuSolverBuilder(
+      _size
+    )
 
     def build(): SudokuSolver = {
         new SudokuSolver(problemSize)
-    } 
+    }
 }
