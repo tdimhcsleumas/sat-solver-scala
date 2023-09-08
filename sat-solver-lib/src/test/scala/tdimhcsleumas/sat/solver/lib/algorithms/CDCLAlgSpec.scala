@@ -4,7 +4,7 @@ import org.scalatest._
 import funspec._
 
 class CDCLAlgSpec extends AnyFunSpec {
-    ignore("returns an assignment for a solvable problem") {
+    it("returns an assignment for a solvable problem") {
         val problem = Seq(
             Seq(1, 2, 3, 5, -6),
             Seq(7, -6, -5, 2),
@@ -27,7 +27,86 @@ class CDCLAlgSpec extends AnyFunSpec {
         }
     }
 
-    ignore("retuns None when a problem is unsolvable") {
+    it("analyzes conflict") {
+        val cnf = Seq(
+            Seq((1, true), (2, true), (3, true)),
+            Seq((1, true), (2, true), (3, false)),
+            Seq((2, false), (4, true)),
+            Seq((1, true), (2, false), (4, false)),
+            Seq((1, false), (5, true), (6, true)),
+            Seq((1, false), (5, true), (6, false)),
+            Seq((5, false), (6, false)),
+            Seq((1, false), (5, false), (6, true)),
+        )
+
+        val solver = new CDCLAlg
+
+        val trail = Seq(
+            solver.TrailEnt((1, false), 1, None),
+            solver.TrailEnt((2, false), 2, None),
+            solver.TrailEnt((3, true), 2, Some(Seq((1, true), (2, true), (3, true)))),
+            solver.TrailEnt((0, true), 2, Some(Seq((1, true), (2, true), (3, false)))),
+        )
+
+        val problem = solver.ProblemInstance(
+            cnf = cnf,
+            variables = Set(1, 2, 3, 4, 5, 6),
+            assignment = Map(1 -> false, 2 -> false, 3 -> true),
+            decisionLevel = 2,
+            trail = trail
+        )
+
+        val analysis = solver.conflictAnalysis(problem, trail)
+
+        assert(analysis.cnf.length === cnf.length + 1) 
+        assert(analysis.cnf.last === Seq((1, true), (2, true)))
+        assert(analysis.decisionLevel === 1)
+        assert(analysis.assignment === Map[Int, Boolean](1 -> false))
+        assert(analysis.trail === Seq(solver.TrailEnt((1, false), 1, None)))
+    }
+
+    it("analyzes conflict single") {
+        val cnf = Seq(
+            Seq((1, true), (2, true), (3, true)),
+            Seq((1, true), (2, true), (3, false)),
+            Seq((2, false), (4, true)),
+            Seq((1, true), (2, false), (4, false)),
+            Seq((1, false), (5, true), (6, true)),
+            Seq((1, false), (5, true), (6, false)),
+            Seq((5, false), (6, false)),
+            Seq((1, false), (5, false), (6, true)),
+            Seq((1, true), (2, true))
+        )
+
+        val solver = new CDCLAlg
+
+        val trail = Seq(
+            solver.TrailEnt((1, false), 1, None),
+            solver.TrailEnt((2, true), 2,Some(
+                Seq((1, true), (2, true))
+            )),
+            solver.TrailEnt((4, true), 2, Some(Seq((2, false), (4, true)))),
+            solver.TrailEnt((0, true), 2, Some(Seq((1, true), (2, false), (4, false)))),
+        )
+
+        val problem = solver.ProblemInstance(
+            cnf = cnf,
+            variables = Set(1, 2, 3, 4, 5, 6),
+            assignment = Map(1 -> false, 2 -> true, 4 -> false),
+            decisionLevel = 1,
+            trail = trail
+        )
+
+        val analysis = solver.conflictAnalysis(problem, trail)
+
+        assert(analysis.cnf.length === cnf.length + 1) 
+        assert(analysis.cnf.last === Seq((1, true)))
+        assert(analysis.decisionLevel === 0)
+        assert(analysis.assignment === Map[Int, Boolean]())
+        assert(analysis.trail === Seq[solver.TrailEnt]())
+    }
+
+    it("retuns None when a problem is unsolvable") {
         val problem = Seq(
             Seq(1, 2, 3),
             Seq(1, 2, -3),
@@ -72,7 +151,7 @@ class CDCLAlgSpec extends AnyFunSpec {
         }
     }
 
-    ignore("solves aim-50") {
+    it("solves aim-50") {
         val problem = Seq(
             Seq(16, 17, 30),
             Seq(-17, 22, 30),
