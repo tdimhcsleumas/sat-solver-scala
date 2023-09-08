@@ -4,6 +4,6 @@ set -e
 
 [[ -z "$SAT_SOLVER_CLI_ROOT" ]] && echo "SAT_SOLVER_CLI_ROOT must be defined" && exit 1
 
-jar_path=$SAT_SOLVER_CLI_ROOT/sudoku-cli/target/scala2.12/sudoku-cli_2.12-0.1.0-SNAPSHOT.jar
+jar_path=$SAT_SOLVER_CLI_ROOT/sudoku-cli/target/scala-2.12/sudoku-cli.jar
 
 java -jar $jar_path $@
