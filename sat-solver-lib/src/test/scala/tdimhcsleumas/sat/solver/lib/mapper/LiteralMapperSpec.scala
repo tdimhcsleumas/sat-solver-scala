@@ -11,13 +11,14 @@ class LiteralMapperSpec extends AnyFunSpec {
         val secondVar = (2, (1, 2))
         val thirdVar = (3, (1, 2))
 
-        val cnf = CNF.builder()
+        val cnf = CNF
+            .builder()
             .addClause(Clause(Literal(firstVar, false), Literal(firstVar, true), Literal(secondVar, false)))
             .addClause(Clause(Literal(firstVar, true), Literal(thirdVar, false)))
             .addClause(Clause(Literal(thirdVar, true), Literal(secondVar, false)))
-            .addClause(Clause(Literal(secondVar,true)))
+            .addClause(Clause(Literal(secondVar, true)))
             .build()
-        
+
         val mapper = new LiteralMapper(cnf)
 
         assert(mapper.getInt(firstVar).get === 1)

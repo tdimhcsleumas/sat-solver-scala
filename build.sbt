@@ -4,7 +4,7 @@ ThisBuild / scalaVersion := "2.12.3"
 ThisBuild / organization := "tdimhcsleumas"
 ThisBuild / autoCompilerPlugins := true
 
-javaOptions += "-Dorg.slf4j.simpleLogger.defaultLogLevel=info"
+javaOptions += "-Dorg.slf4j.simpleLogger.defaultLogLevel=debug"
 
 lazy val root = (project in file("."))
     .aggregate(`sat-solver-cli`)
@@ -33,7 +33,6 @@ lazy val `sudoku-cli` = (project in file("sudoku-cli"))
     Circe.circeCore,
     Circe.circeGeneric,
     Circe.circeParser,
-    Cats.core,
   ))
 
 lazy val compilerOptions = Seq(
@@ -55,6 +54,7 @@ lazy val commonDependencies = Seq(
     ScalaTest.scalaTest % Test,
     Log4s.log4s,
     SLF4j.logger,
+    Cats.core,
 )
 
 lazy val commonCliDependencies = Seq(

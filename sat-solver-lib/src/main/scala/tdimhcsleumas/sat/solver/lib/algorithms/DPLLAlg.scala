@@ -5,137 +5,111 @@ import scala.math
 import org.log4s._
 
 class DPLLAlg extends AlgTrait {
+    case class ProblemInstance(
+        cnf: Seq[Seq[(Int, Boolean)]],
+        variables: Set[Int],
+        assignment: Map[Int, Boolean]
+    )
+
     private[this] val logger = getLogger
-    // https://en.wikipedia.org/wiki/DPLL_algorithm#The_algorithm
 
-    def propagate(cnf: Seq[Seq[Int]], unit: Int): Seq[Seq[Int]] = {
-        cnf.flatMap { literals =>
-            if (literals.contains(unit)) {
-                List()
+    def findUnit(instance: ProblemInstance): Option[(Int, Boolean)] = {
+        val ProblemInstance(cnf, _, assignment) = instance
+        val maybeUnit = cnf.find { clause =>
+            // unit:
+            // a. 1 literal clause
+            // b. other assigned literals are false in the clause
+            val satisfiedVariable = clause.find { case (variable, isTrue) =>
+                assignment.get(variable).map(asgn => asgn == isTrue).getOrElse(false)
+            }
+            if (satisfiedVariable.isDefined) {
+                false
             } else {
-                val inverseUnit = -1 * unit
-                List(literals.filter(literal => literal != inverseUnit))
+                clause.filter { case (variable, _) => assignment.get(variable).isEmpty }.length == 1
             }
         }
+        maybeUnit.flatMap(_.find { case (variable, _) => assignment.get(variable).isEmpty })
     }
 
-    def findUnit(cnf: Seq[Seq[Int]]): Option[Int] = {
-        cnf.find(clause => clause.length == 1).map(_(0))
-    }
-
-    def findPure(cnf: Seq[Seq[Int]]): Option[Int] = {
-        val flattened = cnf.flatMap(clause => clause)
-
-        val literalToDefinedSet = flattened.foldLeft[Map[Int, Int]](Map()) { (map, literal) =>
-            val absLiteral = math.abs(literal)
-            val definedSet = map.getOrElse(absLiteral, 0)
-            val updatedSet = if (literal > 0) {
-                definedSet | 2
-            } else {
-                definedSet | 1
-            }
-            map + ((absLiteral, updatedSet))
-        }
-
-        literalToDefinedSet
-            .find { case (_, definedSet) =>
-                definedSet == 2 || definedSet == 1
-            }
-            .map { case (i, definedSet) =>
-                if (definedSet == 2) {
-                    i
-                } else {
-                    -1 * i
-                }
-            }
-    }
-
-    @tailrec private def unitPropagation(
-        cnf: Seq[Seq[Int]],
-        assignment: Seq[Int]
-    ): (Seq[Seq[Int]], Seq[Int]) = {
-        val maybeUnit = findUnit(cnf)
+    @tailrec final def unitPropagation(instance: ProblemInstance): Option[ProblemInstance] = {
+        val maybeUnit = findUnit(instance)
         maybeUnit match {
-            case None => (cnf, assignment)
+            case None => Some(instance)
             case Some(unit) => {
                 logger.debug(s"Eliminating unit: $unit")
 
-                val newCnf = propagate(cnf, unit)
-                val newAssignment = assignment :+ unit
-                unitPropagation(newCnf, newAssignment)
+                val newAssignment = instance.assignment + unit
+
+                val conflictingClause = instance.cnf.find { clause =>
+                    clause.filter { case (variable, isTrue) =>
+                        newAssignment.get(variable) match {
+                            case None       => true
+                            case Some(asgn) => asgn == isTrue
+                        }
+                    }.length == 0
+                }
+
+                if (conflictingClause.isDefined) {
+                    None
+                } else {
+                    unitPropagation(instance.copy(assignment = newAssignment))
+                }
             }
         }
     }
 
-    @tailrec private def pureLiteralElimination(
-        cnf: Seq[Seq[Int]],
-        assignment: Seq[Int]
-    ): (Seq[Seq[Int]], Seq[Int]) = {
-        val maybePure = findPure(cnf)
-        maybePure match {
-            case None => (cnf, assignment)
-            case Some(pure) => {
-                logger.debug(s"Eliminating pure: $pure")
-
-                val newCnf = propagate(cnf, pure)
-                val newAssignment = assignment :+ pure
-                pureLiteralElimination(newCnf, newAssignment)
-            }
-        }
+    def chooseLiteral(instance: ProblemInstance): Option[(Int, Boolean)] = {
+        val unassigned = instance.variables.find(variable => !instance.assignment.contains(variable))
+        unassigned.map(variable => (variable, true))
     }
 
-    // this is likely the place to try out new heuristics
-    // for now, select the literal with the highest occurence in the cnf
-    def chooseLiteral(cnf: Seq[Seq[Int]]): Int = {
-        val flattened = cnf.flatMap(clause => clause)
-
-        val numToCountMap = flattened.foldLeft[Map[Int, Int]](Map()) { (map, literal) =>
-            val absLiteral = math.abs(literal)
-            val count = map.getOrElse(absLiteral, 0)
-            map + ((absLiteral, count + 1))
-        }
-
-        val (maxI, _) = numToCountMap.max
-        maxI
-    }
-
-    def solveRecurse(
-        cnf: Seq[Seq[Int]],
-        assignment: Seq[Int]
-    ): Option[Seq[Int]] = {
-        logger.debug(s"assigned: ${assignment.length} variables")
+    def solveRecurse(instance: ProblemInstance): Option[Map[Int, Boolean]] = {
+        logger.debug(s"assigned: ${instance.assignment.size} variables")
 
         // unit propagation
-        val (unitCnf, unitAssignment) = unitPropagation(cnf, assignment)
+        val maybePropagation = unitPropagation(instance)
 
-        // pure literal elimination
-        val (pureCnf, pureAssignment) =
-            pureLiteralElimination(unitCnf, unitAssignment)
+        maybePropagation match {
+            case None => None
+            case Some(unitInstance) => {
+                val ProblemInstance(cnf, _, assignment) = unitInstance
+                chooseLiteral(unitInstance) match {
+                    case None => Some(assignment)
+                    case Some(literal) => {
+                        // backtracking
+                        logger.debug(s"Guessing: $literal")
 
-        if (pureCnf.length == 0) {
-            logger.debug("Succeeded!")
+                        val maybeInclude = solveRecurse(unitInstance.copy(cnf = cnf :+ Seq(literal)))
+                        maybeInclude match {
+                            case None => {
+                                val (variable, isTrue) = literal
+                                val opposite = (variable, !isTrue)
 
-            Some(pureAssignment)
-        } else if (pureCnf.find(clause => clause.isEmpty).isDefined) {
-            logger.debug("Failed!")
+                                logger.debug(s"Guessing: $opposite")
 
-            None
-        } else {
-            // backtracking
-            val maxI = chooseLiteral(pureCnf)
-
-            logger.debug(s"Guessing: $maxI")
-
-            val maybeInclude = solveRecurse(pureCnf :+ Seq(maxI), pureAssignment)
-            maybeInclude match {
-                case None => {
-                    logger.debug(s"Guessing: -$maxI")
-                    solveRecurse(pureCnf :+ Seq(-1 * maxI), pureAssignment)
+                                solveRecurse(unitInstance.copy(cnf = cnf :+ Seq(opposite)))
+                            }
+                            case _ => maybeInclude
+                        }
+                    }
                 }
-                case _ => maybeInclude
             }
         }
     }
 
-    override def solve(cnf: Seq[Seq[Int]]): Option[Seq[Int]] = solveRecurse(cnf, Seq())
+    override def solve(cnf: Seq[Seq[Int]]): Option[Seq[Int]] = {
+        val mappedCnf = cnf.map { clause => clause.map(num => (num.abs, num > 0)) }
+        val variables = cnf.flatMap { clause => clause.map(_.abs) }.toSet
+        val instance = ProblemInstance(mappedCnf, variables, Map())
+
+        solveRecurse(instance).map { assignment =>
+            assignment.map { case (variable, isTrue) =>
+                if (isTrue) {
+                    variable
+                } else {
+                    -1 * variable
+                }
+            }.toSeq
+        }
+    }
 }
