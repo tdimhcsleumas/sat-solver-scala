@@ -9,7 +9,8 @@ class SudokuSolver(private val problemSize: Int = 9) {
     def solve(problem: SudokuProblem): Option[SudokuSolution] = {
         val cnfCreatorService = new CnfCreatorService(problemSize)
 
-        val solver = SatSolver.builder()
+        val solver = SatSolver
+            .builder()
             .algorithm(CDCL)
             .build()
 

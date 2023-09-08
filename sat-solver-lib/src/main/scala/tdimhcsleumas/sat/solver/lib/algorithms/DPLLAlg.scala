@@ -16,19 +16,19 @@ class DPLLAlg extends AlgTrait {
     def findUnit(instance: ProblemInstance): Option[(Int, Boolean)] = {
         val ProblemInstance(cnf, _, assignment) = instance
         val maybeUnit = cnf.find { clause =>
-            // unit: 
+            // unit:
             // a. 1 literal clause
             // b. other assigned literals are false in the clause
-            val satisfiedVariable = clause.find { case(variable, isTrue) =>
+            val satisfiedVariable = clause.find { case (variable, isTrue) =>
                 assignment.get(variable).map(asgn => asgn == isTrue).getOrElse(false)
             }
             if (satisfiedVariable.isDefined) {
                 false
             } else {
-                clause.filter { case(variable, _) => assignment.get(variable).isEmpty }.length == 1
+                clause.filter { case (variable, _) => assignment.get(variable).isEmpty }.length == 1
             }
         }
-        maybeUnit.flatMap(_.find { case(variable, _) => assignment.get(variable).isEmpty })
+        maybeUnit.flatMap(_.find { case (variable, _) => assignment.get(variable).isEmpty })
     }
 
     @tailrec final def unitPropagation(instance: ProblemInstance): Option[ProblemInstance] = {
@@ -43,7 +43,7 @@ class DPLLAlg extends AlgTrait {
                 val conflictingClause = instance.cnf.find { clause =>
                     clause.filter { case (variable, isTrue) =>
                         newAssignment.get(variable) match {
-                            case None => true
+                            case None       => true
                             case Some(asgn) => asgn == isTrue
                         }
                     }.length == 0
@@ -65,7 +65,6 @@ class DPLLAlg extends AlgTrait {
 
     def solveRecurse(instance: ProblemInstance): Option[Map[Int, Boolean]] = {
         logger.debug(s"assigned: ${instance.assignment.size} variables")
-
 
         // unit propagation
         val maybePropagation = unitPropagation(instance)
@@ -104,7 +103,7 @@ class DPLLAlg extends AlgTrait {
         val instance = ProblemInstance(mappedCnf, variables, Map())
 
         solveRecurse(instance).map { assignment =>
-            assignment.map { case(variable, isTrue) =>
+            assignment.map { case (variable, isTrue) =>
                 if (isTrue) {
                     variable
                 } else {
