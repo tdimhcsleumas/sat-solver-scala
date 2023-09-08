@@ -11,7 +11,7 @@ class SudokuSolver(private val problemSize: Int = 9) {
 
         val solver = SatSolver
             .builder()
-            .algorithm(DPLL)
+            .algorithm(CDCL)
             .build()
 
         val solverService =

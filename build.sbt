@@ -4,7 +4,7 @@ ThisBuild / scalaVersion := "2.12.3"
 ThisBuild / organization := "tdimhcsleumas"
 ThisBuild / autoCompilerPlugins := true
 
-javaOptions += "-Dorg.slf4j.simpleLogger.defaultLogLevel=info"
+javaOptions += "-Dorg.slf4j.simpleLogger.defaultLogLevel=debug"
 
 lazy val root = (project in file("."))
     .aggregate(`sat-solver-cli`)

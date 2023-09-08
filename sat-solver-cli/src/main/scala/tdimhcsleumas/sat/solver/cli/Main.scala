@@ -16,6 +16,7 @@ object Main {
             algImpl <- algorithm match {
                 case "DPLL"  => Right(DPLL)
                 case "Naive" => Right(Naive)
+                case "CDCL"  => Right(CDCL)
                 case _       => Left("algorithm must be one of DPLL, Naive.")
             }
 
